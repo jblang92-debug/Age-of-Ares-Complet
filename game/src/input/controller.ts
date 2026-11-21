@@ -74,11 +74,11 @@ export class Controller {
   /** Envoie les unités au sol sélectionnées embarquer dans la navette touchée. Renvoie faux si ce n'est pas possible. */
   private embark(nv: number): boolean {
     const t = nv >= 0 ? this.sim.get(nv) : undefined;
-    if (!t || t.kind !== 'navette' || t.owner !== this.player) return false;
-    const ids = [...this.selection].filter((id) => { const u = this.sim.get(id); return !!u && !u.fly; });
+    if (!t || (t.kind !== 'navette' && t.kind !== 'galion') || t.owner !== this.player) return false;
+    const ids = [...this.selection].filter((id) => { const u = this.sim.get(id); return !!u && !u.fly && u.wide !== 2; });
     if (!ids.length) return false;
     this.sim.issue({ type: 'load', ids, navette: nv });
-    this.onMsg?.('Embarquement dans la navette');
+    this.onMsg?.(t.kind === 'galion' ? 'Embarquement dans le galion' : 'Embarquement dans la navette');
     return true;
   }
   /** Ordre contextuel envoyé depuis la mini-carte. */
@@ -87,7 +87,7 @@ export class Controller {
   private regionAt(x: number, z: number, near = 9): number { const c = this.sim.nav.nearestFree(x, z, 0, undefined, undefined, near); return c >= 0 ? this.sim.nav.region[c] : -1; }
   /** Unités au sol sélectionnées qui ne peuvent pas atteindre ce point à pied : on appelle une navette. Vrai si l'ordre a été donné. */
   private ferry(p: THREE.Vector3): boolean {
-    const ground = [...this.selection].map((id) => this.sim.get(id)!).filter((u) => u && !u.fly && u.board < 0);
+    const ground = [...this.selection].map((id) => this.sim.get(id)!).filter((u) => u && !u.fly && u.wide !== 2 && u.board < 0);
     if (!ground.length) return false;
     const dest = this.regionAt(p.x, p.z);
     if (dest < 0) return false;
@@ -95,8 +95,8 @@ export class Controller {
     if (!away.length) return false;
     const cx = away.reduce((a, u) => a + u.x, 0) / away.length, cz = away.reduce((a, u) => a + u.z, 0) / away.length;
     let nv = null as ReturnType<Sim['get']> | null, bd = 1e9;
-    for (const u of this.sim.units) if (u.owner === this.player && u.kind === 'navette' && !u.ferryTo) { const d = Math.hypot(u.x - cx, u.z - cz); if (d < bd) { bd = d; nv = u; } }
-    if (!nv) { this.onMsg?.('Aucune navette disponible : construis un Quai orbital'); return true; }
+    for (const u of this.sim.units) if (u.owner === this.player && (u.kind === 'navette' || u.kind === 'galion') && !u.ferryTo) { const d = Math.hypot(u.x - cx, u.z - cz) + (u.kind === 'galion' ? 40 : 0); if (d < bd) { bd = d; nv = u; } }
+    if (!nv) { this.onMsg?.('Aucun transport disponible : construis un Port (navette ou galion)'); return true; }
     this.sim.issue({ type: 'ferry', ids: away.map((u) => u.id), navette: nv.id, x: p.x, z: p.z });
     const rest = ground.filter((u) => !away.includes(u)).map((u) => u.id);
     if (rest.length) this.sim.issue({ type: 'move', ids: rest, x: p.x, z: p.z, formation: this.formation });
@@ -165,7 +165,7 @@ export class Controller {
   private context(p: THREE.Vector3, sx?: number, sy?: number) {
     const node = this.sim.nodeAt(p.x, p.z), b = this.sim.buildingAt(p.x, p.z);
     if (this.selection.size) {
-      const navs = [...this.selection].filter((id) => this.sim.get(id)?.kind === 'navette');
+      const navs = [...this.selection].filter((id) => { const k = this.sim.get(id)?.kind; return k === 'navette' || k === 'galion'; });
       if (this.unloadMode && navs.length) {
         for (const id of navs) this.sim.issue({ type: 'unload', id, x: p.x, z: p.z });
         this.unloadMode = false; this.onOrder?.(p, 0x8fd3ff); this.onChange?.(); return;
@@ -176,7 +176,9 @@ export class Controller {
         if (this.embark(nv)) { this.onOrder?.(p, 0x8fd3ff); return; }
       }
       const ws = this.workers();
-      if (node && ws.length) { this.sim.issue({ type: 'gather', ids: ws, node: node.id }); this.onOrder?.(p, 0x8fd3ff); return; }
+      const fishers = [...this.selection].filter((id) => this.sim.get(id)?.kind === 'pecheur');
+      if (node && node.kind === 'poisson' && fishers.length) { this.sim.issue({ type: 'gather', ids: fishers, node: node.id }); this.onOrder?.(p, 0x8fd3ff); return; }
+      if (node && node.kind !== 'poisson' && ws.length) { this.sim.issue({ type: 'gather', ids: ws, node: node.id }); this.onOrder?.(p, 0x8fd3ff); return; }
       if (b && b.owner === this.player && !b.done && ws.length) { this.sim.issue({ type: 'assist', ids: ws, b: b.id }); this.onOrder?.(p, 0xffe07a); return; }
       const fx = this.fixers();
       if (b && b.owner === this.player && b.done && b.hp < b.maxHp && fx.length) { this.sim.issue({ type: 'repair', ids: fx, b: b.id }); this.onOrder?.(p, 0x9dffb8); this.onMsg?.('Réparation'); return; }

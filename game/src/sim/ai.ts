@@ -30,6 +30,8 @@ export class Ai {
   private sepFor = -1;
   /** Île voisine exploitée quand les gisements de la sienne s'épuisent ; navette qui y conduit les ouvriers. */
   private colony: { region: number; x: number; z: number } | null = null;
+  /** Marine des âges anciens : emplacement du Port près de la base, point d'eau devant l'ennemi (null : pas de route maritime). */
+  private sea: { port: { x: number; z: number } | null; target: { x: number; z: number } | null } | null = null;
   private colonyChecked = -9999;
   private cf = { id: -1, st: 'idle' as 'idle' | 'loading' | 'flying' | 'back', t: 0 };
   // --- Escarmouche d'avertissement : quelques unités harcèlent les ouvriers adverses vers 3-4 min, puis rentrent.
@@ -107,7 +109,9 @@ export class Ai {
     const centre = this.mine('centre')[0];
     if (!centre) return;
     const units = sim.units.filter((u) => u.owner === me);
-    const workers = units.filter((u) => u.kind === 'ouvrier'), army = units.filter((u) => u.kind !== 'ouvrier' && u.kind !== 'navette');
+    const NAVY = new Set(['galere', 'galion', 'pecheur']);
+    const workers = units.filter((u) => u.kind === 'ouvrier'), army = units.filter((u) => u.kind !== 'ouvrier' && u.kind !== 'navette' && !NAVY.has(u.kind));
+    const navy = units.filter((u) => u.kind === 'galere' || u.kind === 'galion'), fishers = units.filter((u) => u.kind === 'pecheur');
     const navettes = units.filter((u) => u.kind === 'navette');
     // Centre ennemi visé : le plus proche (parties à 4 : chacun pour soi ou en équipes).
     const near = (b: Building) => Math.hypot(b.x - centre0.x, b.z - centre0.z);
@@ -130,6 +134,24 @@ export class Ai {
       }
     }
     const sep = !!this.sep && !!this.shore && !!this.landing;
+    if (this.sea === null && foeCentre) {
+      // Mer près de la base ? Port au plus près du Centre ; route maritime jusqu'à l'eau devant l'ennemi ?
+      const nav = sim.nav; let port: { x: number; z: number } | null = null, pd = 46;
+      for (let z = centre.z - 44; z <= centre.z + 44; z += 2) for (let x = centre.x - 44; x <= centre.x + 44; x += 2) {
+        const d = Math.hypot(x - centre.x, z - centre.z); if (d >= pd || this.regionAt(x, z) !== home || !sim.canPlace('quai', x, z) || sim.nodes.some((n) => n.amount > 0 && n.kind !== 'poisson' && Math.hypot(n.x - x, n.z - z) < 7)) continue;
+        pd = d; port = { x, z };
+      }
+      let target: { x: number; z: number } | null = null;
+      if (port) {
+        const c0 = nav.nearestFree(port.x, port.z, 2, undefined, undefined, 16);
+        if (c0 >= 0) {
+          // L'eau atteignable depuis notre Port la plus proche du Centre ennemi (à moins de 55 m).
+          const f = nav.field(nav.cx(c0), nav.cz(c0), 2), W = nav.blocked[2]; let bd = 55;
+          for (let k = 0; k < W.length; k++) { if (W[k] || f[k] >= 1e8) continue; const d = Math.hypot(nav.cx(k) - foeCentre.x, nav.cz(k) - foeCentre.z); if (d < bd) { bd = d; target = { x: nav.cx(k), z: nav.cz(k) }; } }
+        }
+      }
+      this.sea = { port, target };
+    }
     /** Première attaque : plus tard quand la partie part de l'Antiquité (cinq âges à parcourir). */
     const first = pr.first + (sim.startAge <= 3 ? { facile: 9000, normal: 7200, difficile: 6600 }[this.level] : 0);
     const ice = this.nearest('glace', centre.x, centre.z), ore = this.nearest('minerai', centre.x, centre.z);
@@ -223,6 +245,7 @@ export class Ai {
       else if (can('scierie') && far(nodes[1], 'scierie') && (pr.depots || count('scierie') < 1) && workers.length >= 5) build('scierie', nodes[1]!.x, nodes[1]!.z, 5);
       else if (can('caserne') && count('caserne') < 1 && workers.length >= 6) build('caserne', centre.x + dirX / dl * 8, centre.z + dirZ / dl * 8, 8);
       else if (can('quai') && sep && casernesDone && count('quai') < 1) build('quai', this.shore!.x, this.shore!.z, 0);
+      else if (can('quai') && !sep && this.sea?.port && P.ere <= 3 && workers.length >= 9 && count('quai') < 1) build('quai', this.sea.port.x, this.sea.port.z, 0);   // pêche et marine de guerre
       else if (can('caserne') && count('caserne') < pr.casernes && workers.length >= 10) build('caserne', centre.x + dirX / dl * 8, centre.z + dirZ / dl * 8, 10);
       // Âges anciens : archerie, écurie, puis atelier de siège au Moyen Âge.
       else if (can('archerie') && P.ere <= 3 && casernesDone && count('archerie') < 1 && workers.length >= 8) build('archerie', centre.x + dirX / dl * 5 + dirZ / dl * 7, centre.z + dirZ / dl * 5 - dirX / dl * 7, 8);
@@ -324,6 +347,13 @@ export class Ai {
     // Cartes d'îles : une navette pour 8 soldats (au plus 2).
     for (const q of this.mine('quai')) {
       if (!q.done || q.queue.length >= 1) continue;
+      if (P.ere <= 3) {
+        // Pêche : quelques bateaux si des bancs sont proches ; marine de guerre si une route maritime mène à l'ennemi.
+        const fish = sim.nodes.filter((n) => n.kind === 'poisson' && n.amount > 0 && Math.hypot(n.x - q.x, n.z - q.z) < 55).length;
+        const navyMax = this.sea?.target ? { facile: 2, normal: 4, difficile: 6 }[this.level] : 0;
+        if (fishers.length < Math.min(5, Math.ceil(fish / 3)) && ok('pecheur')) { sim.issue({ type: 'train', b: q.id, kind: 'pecheur' }); continue; }
+        if (navy.length < navyMax && P.bois > 250 && army.length >= 4) { const k = ok('galion') ? 'galion' : ok('galere') ? 'galere' : ''; if (k) { sim.issue({ type: 'train', b: q.id, kind: k }); continue; } }
+      }
       if (navettes.length < (army.length >= 6 ? 2 : 1) + (this.colony ? 1 : 0) && afford(UNITS.navette.cout)) sim.issue({ type: 'train', b: q.id, kind: 'navette' });
     }
     for (const h of this.mine('hangar')) {
@@ -380,6 +410,14 @@ export class Ai {
     // --- Îles : quand les gisements de l'île s'épuisent, une partie des ouvriers part exploiter une île voisine.
     const colonyNav = SEPARATED.has(sim.map.kind) ? this.colonyStep(workers, navettes, home) : -1;
     if (colonyNav >= 0) { const i = navettes.findIndex((n) => n.id === colonyNav); if (i >= 0) navettes.splice(i, 1); }
+
+    // --- Marine : la flotte croise devant la côte ennemie une fois assez nombreuse, sinon garde le Port.
+    if (navy.length) {
+      const idle = navy.filter((u) => !u.group && u.tu < 0 && u.tb < 0);
+      const port = this.mine('quai')[0];
+      if (this.sea?.target && navy.length >= 3 && sim.tick >= first) { if (idle.length && sim.tick % 40 === 0) sim.issue({ type: 'amove', ids: idle.map((u) => u.id), x: this.sea.target.x, z: this.sea.target.z, formation: 'libre' }); }
+      else if (port && idle.length && sim.tick % 60 === 0) { const far = idle.filter((u) => Math.hypot(u.x - port.x, u.z - port.z) > 24); if (far.length) sim.issue({ type: 'move', ids: far.map((u) => u.id), x: port.x, z: port.z, formation: 'libre' }); }
+    }
 
     // --- Armée : défendre la base, sinon attaquer quand le groupe est assez gros.
     const free = (u: Unit) => !u.group && u.tu < 0 && u.tb < 0 && !u.amove;

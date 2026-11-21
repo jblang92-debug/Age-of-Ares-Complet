@@ -22,3 +22,22 @@ export function berryBush(): THREE.BufferGeometry {
   return mergeGeometries(parts)!;
 }
 export const bushMaterial = () => new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.8 });
+
+/** Banc de poissons à fleur d'eau : quelques dos argentés et un remous clair (couleurs par sommet). */
+export function fishShoal(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const col = (g0: THREE.BufferGeometry, c: number) => {
+    const g = g0.index ? g0.toNonIndexed() : g0, n = g.attributes.position.count, a = new Float32Array(n * 3), cc = new THREE.Color(c);
+    for (let i = 0; i < n; i++) { a[i * 3] = cc.r; a[i * 3 + 1] = cc.g; a[i * 3 + 2] = cc.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3)); g.deleteAttribute('uv'); return g;
+  };
+  for (let i = 0; i < 6; i++) {
+    const a = rnd() * 6.28, r = 0.2 + rnd() * 0.8, body = new THREE.SphereGeometry(0.18, 7, 4).scale(1, 0.35, 2.4);
+    body.rotateY(rnd() * 6.28).translate(Math.cos(a) * r, 0.02, Math.sin(a) * r);
+    parts.push(col(body, i % 2 ? 0x9fb4c4 : 0x6f8796));
+  }
+  parts.push(col(new THREE.RingGeometry(0.9, 1.25, 20).rotateX(-Math.PI / 2).translate(0, 0.01, 0), 0xd8eef5));
+  parts.push(col(new THREE.RingGeometry(1.5, 1.7, 20).rotateX(-Math.PI / 2).translate(0, 0.01, 0), 0xc4e2ec));
+  return mergeGeometries(parts.map((p) => { if (!p.attributes.normal) p.computeVertexNormals(); return p; }))!;
+}

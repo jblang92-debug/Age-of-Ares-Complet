@@ -99,6 +99,8 @@ const OLD_LOOKS: Partial<Record<UnitKind, Look>> = {
   ouvrier: { model: 'vill/Villageois.json', height: 1.8, idle: 'Idle_Loop', run: 'Walk_Loop', work: 'TreeChopping_Loop', runSpeed: 1.25, vill: true },
   navette: { model: 'boat/viking.json', footprint: 5.4, custom: true, boat: true, yaw: Math.PI / 2 },
 };
+/** Villageoise (un ouvrier sur deux aux âges anciens). */
+const OUVRIERE: Look = { model: 'vill/Villageoise.json', height: 1.72, idle: 'Idle_Loop', run: 'Walk_Loop', work: 'TreeChopping_Loop', runSpeed: 1.25, vill: true };
 const LOOKS: Record<UnitKind, Look> = {
   milicien:  KK('Knight', ['1H_Sword', 'Round_Shield'], '1H_Melee_Attack_Chop', { hide: ['Knight_Helmet'] }),
   hachier:   KK('Barbarian', ['2H_Axe'], '2H_Melee_Attack_Chop', { idle: '2H_Melee_Idle' }),
@@ -109,6 +111,7 @@ const LOOKS: Record<UnitKind, Look> = {
   chevalier: CAV('Knight', ['1H_Sword', 'Badge_Shield'], '1H_Melee_Attack_Chop'),
   mousquetaire: KK('Rogue', ['2H_Crossbow'], '2H_Ranged_Shoot', { height: 2.1, swap: { of: '2H_Crossbow', make: 'mousquet' } }),
   canon:     { model: 'naval/canon.json', footprint: 2.3, custom: true, siege: 'throw', yaw: Math.PI },
+  pecheur:   { model: 'naval/pecheur.json', footprint: 3.6, custom: true, boat: true, yaw: Math.PI },
   galere:    { model: 'naval/galere.json', footprint: 6.5, custom: true, boat: true, yaw: Math.PI },
   galion:    { model: 'naval/galion.json', footprint: 9, custom: true, boat: true, yaw: Math.PI },
   belier:    { model: 'siege/siege-ram.json', footprint: 3.3, custom: true, siege: 'ram', yaw: Math.PI },
@@ -153,7 +156,7 @@ const LOOKS: Record<UnitKind, Look> = {
   strikerAssaut: STRIKER('White', [ARM('canon', 'R'), ARM('laser', 'L'), BACK('srm', 'R')]),
 };
 const WEAPONS = ['AK', 'GrenadeLauncher', 'Knife_1', 'Knife_2', 'Pistol', 'Revolver', 'Revolver_Small', 'RocketLauncher', 'ShortCannon', 'Shotgun', 'Shovel', 'SMG', 'Sniper', 'Sniper_2'];
-export const UNIT_MODELS = [...new Set([...Object.values(LOOKS), ...Object.values(OLD_LOOKS)].flatMap((l) => [l.model, ...(l.alt ? [l.alt] : []), ...(l.wpn ? [l.wpn] : []), ...(l.rider ? [l.rider.model] : []), ...(l.mounts ?? []).map((m) => m.f)]))];
+export const UNIT_MODELS = [...new Set([...Object.values(LOOKS), ...Object.values(OLD_LOOKS), OUVRIERE].flatMap((l) => [l.model, ...(l.alt ? [l.alt] : []), ...(l.wpn ? [l.wpn] : []), ...(l.rider ? [l.rider.model] : []), ...(l.mounts ?? []).map((m) => m.f)]))];
 
 const AX = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
 const longAxis = (v: THREE.Vector3) => (v.x >= v.y && v.x >= v.z ? 0 : v.y >= v.z ? 1 : 2);
@@ -244,6 +247,7 @@ interface View {
   /** Recul procédural après un tir (s). */ kick?: number;
   /** Arme à remettre à l'horizontale : nœud, pose de repos, axe long local. */ lev?: { o: THREE.Object3D; q: THREE.Quaternion; p: THREE.Vector3; ax: THREE.Vector3 };
   /** Villageois : outils en main et gestes supplémentaires (4 récolte, 5 chantier, 6 marche chargée). */ vt?: Record<string, THREE.Group>;
+  /** Villageois qui mine (pierre, or) : buste penché vers le rocher, le coup de hache devient un coup de pioche. */ mine?: { bone: THREE.Object3D; k: number };
   /** Cheval : jambes résolues en cinématique inverse (les animations n'animent que les sabots). */ ik?: LegIk[];
   /** Cavalerie : cavalier, os du dos du cheval et sa hauteur au repos, animations du cavalier. */ ride?: { body: THREE.Group; bone: THREE.Object3D; y0: number; seat: number; mixer: THREE.AnimationMixer; sit: THREE.AnimationAction; hit: THREE.AnimationAction; on: boolean };
   /** Engin de siège : pièce mobile et phase du geste. */ siegeT?: number;
@@ -294,6 +298,7 @@ function swapWeapon(body: THREE.Object3D, of: string, make: 'arc' | 'mousquet') 
   o.parent?.add(wrap); o.visible = false;
 }
 
+const MINE_Q = new THREE.Quaternion(), MINE_AX = new THREE.Vector3(1, 0, 0), MINE_BEND = 0.7;
 /** Outils du villageois, tenus dans la main droite : hache (bois), pioche (pierre, or), marteau (chantiers). */
 function villTools(): Record<'hache' | 'pioche' | 'marteau', THREE.Group> {
   const mk = (head: THREE.BufferGeometry[]) => {
@@ -359,7 +364,7 @@ function swingAngle(t: number): number {
 /** Vue stratégique : catégorie d'icône de chaque unité. */
 type IconCat = 'eco' | 'inf' | 'veh' | 'air';
 const ICON_CAT: Record<UnitKind, IconCat> = { ouvrier: 'eco', ingenieur: 'eco', fantassin: 'inf', antiblindage: 'inf', eclaireur: 'veh', blinde: 'veh', artillerie: 'veh', drone: 'air', intercepteur: 'air', navette: 'air', cuirasse: 'air',
-  milicien: 'inf', hachier: 'inf', champion: 'inf', archer: 'inf', arbaletrier: 'inf', cavalier: 'veh', chevalier: 'veh', belier: 'veh', catapulte: 'veh', mousquetaire: 'inf', canon: 'veh', galere: 'veh', galion: 'veh',
+  milicien: 'inf', hachier: 'inf', champion: 'inf', archer: 'inf', arbaletrier: 'inf', cavalier: 'veh', chevalier: 'veh', belier: 'veh', catapulte: 'veh', mousquetaire: 'inf', canon: 'veh', galere: 'veh', galion: 'veh', pecheur: 'eco',
   tireur: 'inf', grenadier: 'inf', exo: 'inf', garde: 'inf', commando: 'inf', vigile: 'inf', sam: 'veh', chasseurChars: 'veh', avc: 'veh', huit: 'veh', canonAA: 'veh', challenger: 'air', spitfire: 'air', zenith: 'air', pancake: 'air', executioner: 'air', imperial: 'air',
   lame: 'inf', marteleur: 'inf', sabreur: 'inf', aether: 'inf', araignee: 'veh', araigneeCanon: 'veh', cogneur: 'veh', strikerLaser: 'veh', strikerMissiles: 'veh', strikerAssaut: 'veh' };
 /** Pastille ronde aux couleurs du camp avec un symbole blanc : pioche, fantassin, char, avion. */
@@ -472,7 +477,7 @@ export class UnitViews {
   }
 
   /** Aspect d'une unité : celui de son époque pour les unités qui traversent les âges (ouvrier, navette). */
-  private lookFor(u: Unit): Look { return (this.sim.players[u.owner]?.ere ?? 4) <= 3 && OLD_LOOKS[u.kind] ? OLD_LOOKS[u.kind]! : LOOKS[u.kind]; }
+  private lookFor(u: Unit): Look { return (this.sim.players[u.owner]?.ere ?? 4) <= 3 && OLD_LOOKS[u.kind] ? (u.kind === 'ouvrier' && u.id % 2 ? OUVRIERE : OLD_LOOKS[u.kind]!) : LOOKS[u.kind]; }
   private create(u: Unit): View {
     const look = this.lookFor(u);
     const v: View = { pos: new THREE.Vector3(u.x, this.sim.map.heightAt(u.x, u.z), u.z), heading: u.heading, look, acts: [], state: 0 };
@@ -542,6 +547,7 @@ export class UnitViews {
           const clip = (n: string) => clips.find((c) => c.name === n) ?? find(look.idle!);
           v.acts.push(v.mixer.clipAction(clip('Farm_Harvest')), v.mixer.clipAction(clip('Fixing_Kneeling')), v.mixer.clipAction(clip('Walk_Carry_Loop')));
           v.acts[6].timeScale = look.runSpeed ?? 1;
+          const sp = body.getObjectByName('spine_02'); if (sp) v.mine = { bone: sp, k: 0 };
           const hand = body.getObjectByName('hand_r');
           if (hand) {
             // Le squelette est à l'échelle du fichier : l'outil est ramené à la taille d'un personnage d'1,8 m.
@@ -930,6 +936,7 @@ export class UnitViews {
           const node = u.job?.t === 'gather' ? this.sim.nodes[u.job.node] : undefined, build = u.job?.t === 'build' || u.job?.t === 'repair' || u.job?.t === 'capture';
           if (st === 2) st = build ? 5 : node && node.res === 'eau' ? 4 : 2;
           else if (st === 1 && u.carry > 0.5) st = 6;
+          if (v.mine) v.mine.k += ((st === 2 && node && node.res !== 'bois' ? 1 : 0) - v.mine.k) * Math.min(1, dt * 6);
           if (v.vt) { const tool = st === 5 ? 'marteau' : st === 2 ? (node && node.res === 'bois' ? 'hache' : 'pioche') : ''; for (const [k, t] of Object.entries(v.vt)) t.visible = k === tool; }
         }
         if ((u.tu >= 0 || u.tb >= 0) && !v.turret) v.heading = u.heading;
@@ -940,11 +947,13 @@ export class UnitViews {
         }
         if (u.carry > 0.5 && u.carryKind && nCarry < CAP) {
           // charge visible sur le dos de l'ouvrier
-          m.compose(p.set(x - Math.sin(v.heading) * 0.45, v.pos.y + 1.45, z - Math.cos(v.heading) * 0.45), q.setFromAxisAngle(this.up, v.heading), s.set(1, 1, 1));
+          const vk = v.look.vill ? 0.4 : 1, back = v.look.vill ? 0.26 : 0.45;   // villageois : petit ballot sur le dos
+          m.compose(p.set(x - Math.sin(v.heading) * back, v.pos.y + (v.look.vill ? 1.12 : 1.45), z - Math.cos(v.heading) * back), q.setFromAxisAngle(this.up, v.heading), s.set(vk, vk, vk));
           this.carry.setMatrixAt(nCarry, m); this.carry.setColorAt(nCarry++, CARRY_COLORS[u.carryKind] ?? CARRY_COLORS.eau);
         }
         v.mixer?.update(dt);
         if (v.ik) { v.body.updateMatrixWorld(true); solveIk(v.ik); }
+        if (v.mine && v.mine.k > 0.01) v.mine.bone.quaternion.multiply(MINE_Q.setFromAxisAngle(MINE_AX, MINE_BEND * v.mine.k));
         if (v.ride) {
           // Cavalier : suit le dos du cheval ; frappe du haut du corps pendant l'attaque.
           const R = v.ride, attack = st === 2 || st === 3;

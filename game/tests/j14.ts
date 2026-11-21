@@ -14,7 +14,7 @@ function game(seed: number, kind: 'terre' | 'mont' | 'continentale' | 'grandesil
   const ais = sim.sides.map((o) => new Ai(sim, o, levels[o]));
   const t0 = Date.now();
   const out: number[] = [];
-  while (sim.tick < 30000 && sim.winner < 0) {
+  while (sim.tick < 48000 && sim.winner < 0) {
     for (const a of ais) a.step(); sim.step();
     for (const e of sim.events) if (e.t === 'msg' && e.text.endsWith('est éliminé') && !out.includes(e.owner)) void 0;
     sim.events.length = 0;

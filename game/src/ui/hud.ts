@@ -25,7 +25,7 @@ const ICONS = new Set(['b_centre', 'b_depotMinier', 'b_centrale', 'b_habitat', '
   'b_arene', 'b_atelier', 'u_lame', 'u_marteleur', 'u_sabreur', 'u_aether', 'u_araignee', 'u_araigneeCanon', 'u_cogneur', 'u_strikerLaser', 'u_strikerMissiles', 'u_strikerAssaut',
   'u_tireur', 'u_grenadier', 'u_garde', 'u_commando', 'u_vigile', 'u_exo', 'u_sam', 'u_chasseurChars', 'u_avc', 'u_huit', 'u_canonAA', 'u_challenger', 'u_spitfire', 'u_zenith', 'u_pancake', 'u_executioner', 'u_imperial',
   'u_milicien', 'u_hachier', 'u_champion', 'u_archer', 'u_arbaletrier', 'u_cavalier', 'u_chevalier', 'u_belier', 'u_catapulte', 'b_archerie', 'b_ecurie', 'b_atelierSiege',
-  'u_mousquetaire', 'u_canon', 'u_galere', 'u_galion', 'u_ouvrier_a', 'u_navette_a',
+  'u_mousquetaire', 'u_canon', 'u_galere', 'u_galion', 'u_ouvrier_a', 'u_navette_a', 'u_pecheur', 'b_scierie', 'b_mur_a1', 'b_mur_a2',
   ...['centre', 'habitat', 'stationEau', 'scierie', 'depotMinier', 'recycleur', 'caserne', 'archerie', 'ecurie', 'quai', 'tourelle', 'porte'].flatMap((k) => [`b_${k}_a1`, `b_${k}_a2`]), 'b_atelierSiege_a2',
   'a_stop', 'a_repli', 'a_agressive', 'a_defensive', 'a_tenir', 'a_passive', 'a_debarquer', 'a_reparer', 'a_capturer', 'a_transporter']);
 /** Recherches sans illustration propre : on réutilise une icône proche. */
@@ -199,7 +199,7 @@ export class Hud {
           if (count.eclaireur) acts.push(`<button data-act="patrol" class="ib cmd" title="L'éclaireur fait le tour de la carte et dissipe le brouillard">${icon('a_transporter')}Patrouiller</button>`);
           html += `<div class="row grid">${acts.join('')}</div>`;
         }
-        if (count.navette) {
+        if (count.navette || count.galion) {
           const aboard = [...ctrl.selection].reduce((a, id) => a + (sim.get(id)?.cargo.length ?? 0), 0);
           html += `<div class="row"><button data-act="unload" class="ib cmd${ctrl.unloadMode ? ' on' : ''}">${icon('a_debarquer')}Débarquer<i>${aboard} à bord</i></button></div>`;
         }

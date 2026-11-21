@@ -18,7 +18,7 @@ import { Ai, type Level } from './sim/ai';
 import { GameAudio } from './audio/audio';
 import { UnitViews } from './render/units';
 import { Controller } from './input/controller';
-import { replayTo, type SaveGame } from './sim/replay';
+import { replayTo, type SaveGame, saveAge } from './sim/replay';
 import { WONDER_TICKS, type Order, type Doctrine, type UnitKind } from './sim/sim';
 import { FogOfWar } from './render/fog';
 import { showEnd } from './ui/stats';
@@ -140,7 +140,7 @@ const nextSpeed = (dir: number) => { if (online) return; speed = SPEEDS[Math.max
 document.getElementById('btn-pause')!.addEventListener('click', togglePause);
 document.getElementById('btn-speed')!.addEventListener('click', () => { speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]; paintSpeed(); });
 // --- Sauvegarde automatique (toutes les 20 s de jeu, et quand on quitte l'appli).
-const saveData = (): SaveGame => ({ v: 1, seed, size, kind, level, doctrine: opts.doctrine, fog: opts.fog, blitz: opts.blitz, storms: opts.storms, contested: opts.contested, ressources: opts.res, faction: opts.faction, age: opts.age, players, tick: sim.tick, orders: log, at: Date.now() });
+const saveData = (): SaveGame => ({ v: 1, seed, size, kind, level, doctrine: opts.doctrine, fog: opts.fog, blitz: opts.blitz, storms: opts.storms, contested: opts.contested, ressources: opts.res, faction: opts.faction, age: opts.age, ages: GAME.eres.length, players, tick: sim.tick, orders: log, at: Date.now() });
 const save = () => {
   if (!recording || !started || sim.winner >= 0) return;
   store.set('sauvegarde', JSON.stringify(saveData()));
@@ -396,7 +396,10 @@ function frame(now: number) {
       } else if (mz) fx.weapon(w, mz.x, mz.y, mz.z, e.x1, y1, e.z1, 0);
       else fx.weapon(w, e.x0, map.heightAt(e.x0, e.z0) + (my ?? W?.y ?? (e.from ? 4.6 : 1.3)), e.z0, e.x1, y1, e.z1, W?.twin ?? 0);
       const shotN = 1 + Math.abs(Math.round(e.x0 * 7 + e.z0 * 3)) % 3;
-      if (w === 'fleche') audio.sfxVar('fleche', 0.3 * v, 50);
+      const sk = e.kind;
+      if (sk === 'mousquetaire') audio.sfxVar('mousquet', 0.4 * v, 60);
+      else if (sk === 'canon' || sk === 'galion') audio.sfxVar('poudre', 0.55 * v, 120);
+      else if (w === 'fleche') audio.sfxVar('fleche', 0.3 * v, 50);
       else if (w === 'pierre') audio.sfxVar('catapulte', 0.55 * v, 120);
       else if (w === 'fusil') audio.sfx('shot' + shotN, 0.26 * v, 70);
       // Fusil à pompe : détonation grave et sèche, puis le « clac-clac » du rechargement.
@@ -501,7 +504,7 @@ function frame(now: number) {
   fx.barsEnd(); fx.update(dt, cam.camera.quaternion);
   if (fx.shake > 0) { cam.shake(fx.shake); fx.shake = 0; }
   if (ctrl && ctrl.selection.size) { let gone = false; for (const id of ctrl.selection) if (!sim.get(id)) { ctrl.selection.delete(id); gone = true; } if (gone) ctrl.select([...ctrl.selection]); }
-  world.setAge(lookAge(sim.players[Math.max(0, me)]?.ere ?? 4), sim.tick < 3);
+  world.setAge(lookAge(sim.players[Math.max(0, me)]?.ere ?? 4), sim.tick < 3); cam.waterY = lookAge(sim.players[Math.max(0, me)]?.ere ?? 4) < 5 ? -1.3 : -Infinity;
   world.update(dt, cam.target, cam.dist);
   world.renderer.render(world.scene, cam.camera);
   frames++; acc += dtMs;
@@ -721,7 +724,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   if (store.get('revoir') === '1' && last && last.seed === seed && last.size === size && last.kind === kind && (last.players ?? 'duel') === players) {
     store.del('revoir');
     level = last.level;
-    opts = { doctrine: (last.doctrine || '') as Doctrine, fog: false, blitz: !!last.blitz, storms: !!last.storms, contested: !!last.contested, res: last.ressources || 'normales', faction: last.faction ?? 0, age: last.age ?? 4 };
+    opts = { doctrine: (last.doctrine || '') as Doctrine, fog: false, blitz: !!last.blitz, storms: !!last.storms, contested: !!last.contested, res: last.ressources || 'normales', faction: last.faction ?? 0, age: saveAge(last) };
     if (players === 'equipes') sim.setTeams([0, 1, 0, 1]);
     applyOpts(false);
     ais = sim.sides.slice(1).map((o) => new Ai(sim, o, last!.level as Level)); ai = ais[0];
@@ -743,7 +746,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   if (store.get('reprendre') === '1' && saved && saved.seed === seed && saved.size === size && saved.kind === kind && (saved.players ?? 'duel') === players) {
     store.del('reprendre');
     const lv = saved.level; level = lv;
-    opts = { doctrine: (saved.doctrine || '') as Doctrine, fog: !!saved.fog, blitz: !!saved.blitz, storms: !!saved.storms, contested: !!saved.contested, res: saved.ressources || 'normales', faction: saved.faction ?? 0, age: saved.age ?? 4 };
+    opts = { doctrine: (saved.doctrine || '') as Doctrine, fog: !!saved.fog, blitz: !!saved.blitz, storms: !!saved.storms, contested: !!saved.contested, res: saved.ressources || 'normales', faction: saved.faction ?? 0, age: saveAge(saved) };
     if (players === 'equipes') sim.setTeams([0, 1, 0, 1]);
     applyOpts(false);
     ais = sim.sides.slice(1).map((o) => new Ai(sim, o, lv as Level)); ai = ais[0]; hud.setLevel(lv);

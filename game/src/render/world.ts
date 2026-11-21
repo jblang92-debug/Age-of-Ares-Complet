@@ -6,7 +6,7 @@ import { slopeAt } from '../mapgen/terrain';
 import { mulberry32 } from '../core/rng';
 import { buildTerrainMesh } from './terrainMesh';
 import { iceGeometry, iceMaterial } from './ice';
-import { berryBush, bushMaterial } from './flora';
+import { berryBush, bushMaterial, fishShoal } from './flora';
 import { preload, spawn, instanced } from './assets';
 import { UNIT_MODELS, WATER_Y } from './units';
 import { BUILDING_MODELS } from './buildings';
@@ -196,15 +196,19 @@ export class World {
     // Nourriture : buissons de baies (âges anciens) / blocs de glace (ère spatiale).
     this.resOld.push(fromGeo('glace', berryBush(), bushMaterial(), (r) => mat(r, r.sx * 1.25, r.sx * 1.15, 0.05, false)));
     this.resNew.push(fromGeo('glace', iceGeometry(), iceMaterial(this.renderer), (r) => mat(r, r.sx, r.sy, 0.25)));
+    // Poissons : bancs à fleur d'eau (âges anciens ; l'eau devient le vide à l'âge galactique).
+    const fish = fromGeo('poisson', fishShoal(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.2, transparent: true, opacity: 0.92 }),
+      (r) => new THREE.Matrix4().compose(new THREE.Vector3(r.x, WATER_Y + 0.08, r.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r.rot, 0)), new THREE.Vector3(1, 1, 1)));
+    fish.renderOrder = 2; this.resOld.push(fish);
     // Bois : forêts (toutes époques).
     fromModels('arbre', [A + 'Resource_Tree1.json', A + 'Resource_Tree2.json', A + 'Resource_PineTree.json', A + 'Resource_PineTree.json'], (r) => mat(r, r.sx * 1.45, r.sx * 1.45 * r.sy, 0.1, false));
     // Pierre : rochers gris (âges anciens) / minerai métallique (ère spatiale).
-    this.resOld.push(fromModels('minerai', [A + 'Resource_Rock_1.json', A + 'Resource_Rock_2.json', A + 'Resource_Rock_3.json'], (r) => mat(r, r.sx * 1.25, r.sx * 1.15, 0.15, false)));
+    this.resOld.push(fromModels('minerai', [A + 'Resource_Rock_1.json', A + 'Resource_Rock_2.json', A + 'Resource_Rock_3.json'], (r) => mat(r, r.sx * 1.45, r.sx * 1.25, 0.15, false)));
     const ore = fromModels('minerai', ['quat/Rock_2.json'], (r) => mat(r, r.sx, r.sy, 0.2), 0x6d6470);
     ore.traverse((o) => { const im = o as THREE.InstancedMesh; if (im.isInstancedMesh) { const mt = im.material as THREE.MeshStandardMaterial; mt.metalness = 0.75; mt.roughness = 0.42; } });
     this.resNew.push(ore);
     // Or : filons dorés (toutes époques).
-    fromModels('or', [A + 'Resource_Gold_1.json', A + 'Resource_Gold_2.json', A + 'Resource_Gold_3.json'], (r) => mat(r, r.sx * 1.3, r.sx * 1.0 * r.sy, 0.12, false));
+    fromModels('or', [A + 'Resource_Gold_1.json', A + 'Resource_Gold_2.json', A + 'Resource_Gold_3.json'], (r) => mat(r, r.sx * 1.55, r.sx * 1.15 * r.sy, 0.12, false));
     for (const [i, fs] of hides) this.resHide.set(i, () => fs.forEach((f) => f()));
     this.showResEpoch(this.epoch < 0 ? 0 : this.epoch);
   }

@@ -3,7 +3,7 @@
 import type { Sim, Order } from './sim';
 import type { Ai } from './ai';
 
-export interface SaveGame { v: 1; seed: number; size: string; kind: string; level: string; /** Options de la partie (absentes dans les anciennes sauvegardes). */ doctrine?: string; fog?: boolean; blitz?: boolean; storms?: boolean; contested?: boolean; ressources?: string; faction?: number; /** Âge de départ (absent : âge moderne, comme avant les âges anciens). */ age?: number; players?: 'duel' | 'ffa' | 'equipes'; tick: number; orders: [number, Order][]; /** Date d'enregistrement (ms) et issue de la partie, pour les listes. */ at?: number; result?: string }
+export interface SaveGame { v: 1; seed: number; size: string; kind: string; level: string; /** Options de la partie (absentes dans les anciennes sauvegardes). */ doctrine?: string; fog?: boolean; blitz?: boolean; storms?: boolean; contested?: boolean; ressources?: string; faction?: number; /** Âge de départ (absent : âge moderne, comme avant les âges anciens). */ age?: number; /** Nombre d'âges du jeu à l'enregistrement (6 depuis l'âge de la poudre ; absent : 5). */ ages?: number; players?: 'duel' | 'ffa' | 'equipes'; tick: number; orders: [number, Order][]; /** Date d'enregistrement (ms) et issue de la partie, pour les listes. */ at?: number; result?: string }
 
 /** Avance la partie jusqu'au tick `to` en réinjectant les ordres enregistrés. Renvoie l'indice du prochain ordre. */
 export function replayTo(sim: Sim, ais: Ai[], orders: [number, Order][], from: number, to: number, onEvents?: () => void): number {
@@ -26,4 +26,10 @@ export function fingerprint(sim: Sim): string {
   for (const b of sim.buildings) { mix(b.id); mix(b.hp); mix(b.progress); }
   for (const p of sim.players) { mix(p.eau); mix(p.bois); mix(p.minerai); mix(p.energie); mix(p.solarite); mix(p.ere); }
   return `${sim.tick}:${sim.units.length}:${sim.buildings.length}:${h.toString(16)}`;
+}
+
+/** Âge de départ d'une sauvegarde, renuméroté si elle date d'avant l'âge de la poudre (5 âges : moderne = 3). */
+export function saveAge(s: { age?: number; ages?: number }): number {
+  if (s.age === undefined) return 4;
+  return (s.ages ?? 5) >= 6 ? s.age : s.age >= 3 ? s.age + 1 : s.age;
 }

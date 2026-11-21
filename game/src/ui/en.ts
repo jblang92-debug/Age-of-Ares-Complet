@@ -1,6 +1,13 @@
 // Traductions anglaises. EN_NAMES : noms propres du jeu (unités, bâtiments, recherches, factions, ères).
 // EN : phrases et morceaux de phrases ; « # » = un nombre, « @ » = un nom de EN_NAMES.
 export const EN_NAMES: Record<string, string> = {
+  // Âges anciens et âge de la poudre
+  'Villageois': 'Villager', 'Milicien': 'Militia', 'Guerrier à la hache': 'Axeman', 'Champion': 'Champion', 'Archer': 'Archer', 'Arbalétrier': 'Crossbowman',
+  'Cavalier éclaireur': 'Scout Cavalry', 'Chevalier': 'Knight', 'Bélier': 'Battering Ram', 'Bateau de pêche': 'Fishing Boat', 'Catapulte': 'Catapult', 'Barque de transport': 'Transport Boat',
+  'Centre-ville': 'Town Center', 'Maison': 'House', 'Palissade': 'Palisade', 'Muraille': 'Stone Wall', 'Porte fortifiée': 'Fortified Gate', 'Tour de guet': 'Watch Tower', 'Port': 'Dock',
+  'Archerie': 'Archery Range', 'Écurie': 'Stable', 'Cavalerie': 'Cavalry', 'Atelier de siège': 'Siege Workshop', 'Mousquetaire': 'Musketeer', 'Canon': 'Cannon',
+  'Galère de guerre': 'War Galley', 'Galion à canons': 'Cannon Galleon', 'Scierie': 'Sawmill', 'Camp de bûcherons': 'Lumber Camp', 'Camp de mineurs': 'Mining Camp', 'Ferme': 'Farm', 'Ferme hydroponique': 'Hydroponic Farm', 'Silo hydroponique': 'Hydroponic Silo', 'Moulin': 'Mill',
+  'Antiquité': 'Antiquity', 'Moyen Âge': 'Middle Ages', 'Âge de la poudre': 'Gunpowder Age', 'Âge moderne': 'Modern Age', 'Âge industriel': 'Industrial Age', 'Âge galactique': 'Galactic Age',
   'Ouvrier': 'Worker', 'Fantassin': 'Rifleman', 'Éclaireur': 'Scout', 'Blindé': 'Tank', 'Artillerie': 'Artillery', 'Ingénieur': 'Engineer',
   'Anti-blindage': 'Anti-armor', 'Intercepteur': 'Interceptor', 'Drone': 'Drone', 'Cuirassé du vide': 'Void Battleship', 'Lame': 'Blade',
   'Marteleur': 'Hammerer', 'Sabreur': 'Swordsman', "Lame d'Aether": 'Aether Blade', 'Robot araignée': 'Spider Bot', 'Araignée à canon': 'Cannon Spider',

@@ -234,3 +234,15 @@ Dans ce dossier, depuis le Terminal :
 - Icônes rendues dans le jeu pour chaque âge ancien : bâtiments (`b_<type>_a1` Antiquité, `_a2` Moyen Âge et poudre), villageois et barque (`u_ouvrier_a`, `u_navette_a`), nouvelles unités. Script : scripts/icons_game.py (hors dépôt).
 - Salon en ligne : l'hôte choisit l'âge de départ (Antiquité, Moyen Âge, moderne). Menu solo : option Époque « Moyen Âge » ajoutée.
 - Rochers du décor : gris unis aux âges anciens (texture rousse retirée), roux à l'ère spatiale.
+
+## 21/11/2026 (soir) — Pêche, galion de transport, marine de l'IA, villageoise, sons de poudre
+
+- Pêche : bancs de poissons près des côtes (mapgen), Bateau de pêche (Port, Antiquité → poudre, charge 20) qui dépose au Port.
+- Galion : transporte jusqu'à 10 places de troupes (embarquement au bord de l'eau, débarquement sur l'eau la plus proche du point visé). Les navires ne se bousculent plus avec les troupes à terre.
+- IA : Port près de la base s'il y a de la mer, bateaux de pêche, flotte de guerre (2/4/6 selon le niveau) qui croise devant la côte ennemie quand une route maritime existe.
+- Villageoise (Quaternius, tenue Female_Peasant, chignon) : un ouvrier sur deux. Pour la pierre et l'or, le villageois se penche : le coup de hache devient un coup de pioche. Charge portée : petit ballot sur le dos.
+- Sons de poudre synthétisés (scripts/powder.py, hors dépôt) : groupes `mousquet` et `poudre`.
+- Icônes : palissade et muraille, scierie moderne, bateau de pêche ; galère et barque recadrées.
+- Sauvegardes d'avant l'âge de la poudre : l'âge de départ est renuméroté (`saveAge`).
+- Version anglaise : noms des unités, bâtiments et âges anciens.
+- Test : `npx tsx tests/j23.ts` (pêche, galion, IA côtière). j14 : limite portée à 80 min (les parties à 4 durent ~66 min).

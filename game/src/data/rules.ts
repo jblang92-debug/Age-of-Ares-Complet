@@ -3,6 +3,8 @@
 // Les clés historiques sont gardées (sauvegardes, réseau) ; seuls les noms affichés changent.
 export interface Cost { eau?: number; bois?: number; minerai?: number; energie?: number; solarite?: number }
 /** Noms affichés des ressources. */
+/** Places à bord d'un galion (1 par fantassin, 2 cavalier, 3 engin). */
+export const GALION_PLACES = 10;
 export const RES_NOM: Record<string, string> = { eau: 'Nourriture', bois: 'Bois', minerai: 'Pierre', energie: 'Or', solarite: 'Solarite' };
 /** « Pas assez de … » pour une ressource. */
 export const manque = (k: string) => ({ eau: 'Pas assez de nourriture', bois: 'Pas assez de bois', minerai: 'Pas assez de pierre', energie: 'Pas assez d\'or', solarite: 'Pas assez de solarite' } as Record<string, string>)[k] ?? 'Pas assez de ' + k;
@@ -15,7 +17,7 @@ export const GAME = {
   /** Unités de ressource récoltées par seconde par un ouvrier au travail. */
   recolteParSeconde: 0.9,
   /** Quantité contenue dans chaque bloc d'un gisement. */
-  gisement: { glace: 200, arbre: 120, minerai: 300, or: 350, solarite: 300 },
+  gisement: { glace: 200, arbre: 120, minerai: 300, or: 350, solarite: 300, poisson: 220 },
   bonusHauteur: 1.25,
   depart: { eau: 200, bois: 200, minerai: 150, energie: 100, solarite: 0, ouvriers: 4, eclaireurs: 1 },
   /** Âges : on part de l'Antiquité (ou de l'âge moderne, au choix) et on monte jusqu'à l'âge galactique.
@@ -101,7 +103,9 @@ export const UNITS: Record<string, UnitRule> = {
   // ---- Âge de la poudre (et marine des âges anciens, au Port).
   mousquetaire: { temps: 22, nom: 'Mousquetaire', ere: 3, ereMax: 3, produitA: 'archerie', cout: { eau: 50, energie: 55 }, pop: 1, pv: 75, vitesse: 2.8, degats: 17, cadence: 2.6, portee: 8, viseAir: true, bonus: { infanterie: 1.2, vehicule: 1.5, batiment: 0.4 } },
   canon: { temps: 34, nom: 'Canon', ere: 3, ereMax: 3, produitA: 'atelierSiege', cout: { bois: 220, energie: 180 }, pop: 3, pv: 220, vitesse: 2.2, degats: 55, cadence: 5, portee: 12.5, viseAir: false, bonus: { batiment: 3, infanterie: 0.7, vehicule: 0.8 } },
+  pecheur: { temps: 20, nom: 'Bateau de pêche', ere: 1, ereMax: 3, produitA: 'quai', cout: { bois: 75 }, pop: 1, pv: 70, vitesse: 4.2, degats: 0, cadence: 1, portee: 0, viseAir: false, naval: true },
   galere: { temps: 30, nom: 'Galère de guerre', ere: 2, ereMax: 3, produitA: 'quai', cout: { bois: 160, energie: 40 }, pop: 3, pv: 340, vitesse: 5, degats: 11, cadence: 1.5, portee: 8, viseAir: false, naval: true, bonus: { batiment: 1, galere: 1.3, galion: 1.2 } },
+  /** Le galion transporte aussi des troupes (GALION_PLACES). */
   galion: { temps: 40, nom: 'Galion à canons', ere: 3, ereMax: 3, produitA: 'quai', cout: { bois: 230, energie: 130 }, pop: 4, pv: 600, vitesse: 4.4, degats: 30, cadence: 3, portee: 11, viseAir: false, naval: true, bonus: { batiment: 1.8 } },
   catapulte: { temps: 32, nom: 'Catapulte', ere: 2, ereMax: 3, produitA: 'atelierSiege', cout: { bois: 180, energie: 100 }, pop: 3, pv: 150, vitesse: 2.2, degats: 34, cadence: 5, portee: 12, viseAir: false, bonus: { batiment: 2.5, infanterie: 0.8, vehicule: 0.8 } },
   navette:   { temps: 25, nom: 'Navette',   ere: 1, produitA: 'quai',    cout: { minerai: 120, energie: 40 },              pop: 2, pv: 220, vitesse: 6,   degats: 0,  cadence: 1,   portee: 0, viseAir: false, vole: true },

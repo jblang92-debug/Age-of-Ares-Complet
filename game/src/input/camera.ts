@@ -86,6 +86,8 @@ export class RtsCamera {
     return out.copy(d).multiplyScalar(t).add(o);
   }
 
+  /** Surface de l'eau aux âges où la mer est visible (un clic sur l'eau la touche, pas le fond). */
+  waterY = -Infinity;
   /** Point exact du terrain sous un pixel (marche le long du rayon). */
   terrainPoint(clientX: number, clientY: number, out: THREE.Vector3): THREE.Vector3 | null {
     this.groundPoint(clientX, clientY, out);
@@ -93,13 +95,14 @@ export class RtsCamera {
     let prev = 0;
     for (let t = 5; t < 400; t += 0.75) {
       const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
-      if (y <= this.map.heightAt(x, z)) {
+      const H = (px: number, pz: number) => Math.max(this.map.heightAt(px, pz), this.waterY);
+      if (y <= H(x, z)) {
         let a = prev, b = t;
         for (let k = 0; k < 8; k++) {
           const m = (a + b) / 2;
-          if (o.y + d.y * m <= this.map.heightAt(o.x + d.x * m, o.z + d.z * m)) b = m; else a = m;
+          if (o.y + d.y * m <= H(o.x + d.x * m, o.z + d.z * m)) b = m; else a = m;
         }
-        return out.set(o.x + d.x * b, 0, o.z + d.z * b).setY(this.map.heightAt(o.x + d.x * b, o.z + d.z * b));
+        return out.set(o.x + d.x * b, 0, o.z + d.z * b).setY(H(o.x + d.x * b, o.z + d.z * b));
       }
       prev = t;
     }

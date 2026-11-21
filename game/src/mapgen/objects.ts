@@ -11,7 +11,7 @@ export interface Placed {
   block: number; owner: number; roof?: { model: string; footprint: number };
 }
 export interface Rock { model: string; x: number; z: number; rot: number; s: number; sy: number; block: number }
-export interface ResourceNode { kind: 'solarite' | 'glace' | 'arbre' | 'minerai' | 'or'; x: number; z: number; rot: number; sx: number; sy: number; tilt: number; /** Gisement posé sur une île (accessible par navette). */ island?: boolean }
+export interface ResourceNode { kind: 'solarite' | 'glace' | 'arbre' | 'minerai' | 'or' | 'poisson'; x: number; z: number; rot: number; sx: number; sy: number; tilt: number; /** Gisement posé sur une île (accessible par navette). */ island?: boolean }
 export interface MapObjects { buildings: Placed[]; rocks: Rock[]; resources: ResourceNode[]; spawns: Vec2[][]; /** Gisements que le générateur n'a pas réussi à placer. */ missing: string[] }
 
 export function generateObjects(map: TerrainMap): MapObjects {
@@ -152,6 +152,23 @@ export function generateObjects(map: TerrainMap): MapObjects {
     const x = (rr() * 2 - 1) * ext, z = (rr() * 2 - 1) * ext;
     if (Math.max(Math.abs(x), Math.abs(z)) < half + 3 || VOID_BORDER.has(map.kind)) continue;
     rocks.push({ model: big[(rr() * 3) | 0], x, z, rot: rr() * 6.28, s: 7 + rr() * 9, sy: 0.6 + rr() * 0.5, block: 0 });
+  }
+  // Bancs de poissons : en eau libre, à moins de 10 m d'une côte (pêche depuis le Port), en symétrie.
+  {
+    const rf = mulberry32(map.seed + 17), deep = (x: number, z: number) => { for (let a = 0; a < 6.28; a += 0.8) if (!map.isVoid(x + Math.cos(a) * 2.6, z + Math.sin(a) * 2.6)) return false; return map.isVoid(x, z); };
+    const coast = (x: number, z: number) => { for (let r = 5; r <= 10; r += 2.5) for (let a = 0; a < 6.28; a += 0.5) if (!map.isVoid(x + Math.cos(a) * r, z + Math.sin(a) * r)) return true; return false; };
+    const spots: Vec2[] = [];
+    for (let z = -half + 6; z <= half - 6; z += 3) for (let x = -half + 6; x <= half - 6; x += 3)
+      if (deep(x, z) && coast(x, z) && Math.hypot(x - s0.x, z - s0.z) < half * 1.1) spots.push({ x, z });
+    const taken: Vec2[] = [];
+    const want = Math.round(4 * (half / 80));
+    for (let k = 0; k < 400 && taken.length < want && spots.length; k++) {
+      const c = spots[Math.floor(rf() * spots.length)];
+      const ms = mirrors(c);
+      if (!ms.every((p) => deep(p.x, p.z)) || taken.some((t) => ms.some((p) => Math.hypot(p.x - t.x, p.z - t.z) < 16))) continue;
+      taken.push(...ms);
+      for (const p of ms) for (let i = 0; i < 4; i++) { const a = rf() * 6.28, r = rf() * 2.2; resources.push({ kind: 'poisson', x: p.x + Math.cos(a) * r, z: p.z + Math.sin(a) * r, rot: rf() * 6.28, sx: 0.9, sy: 1, tilt: 0 }); }
+    }
   }
   return { buildings, rocks, resources, spawns, missing };
 }

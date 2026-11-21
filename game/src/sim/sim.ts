@@ -2,14 +2,14 @@
 // Joueur, IA et (plus tard) ami émettent les mêmes ordres via `issue()`.
 import type { TerrainMap } from '../mapgen/terrain';
 import type { MapObjects } from '../mapgen/objects';
-import { UNITS, BUILDINGS, GAME, RESEARCH, TURRETS, SHIELD, ION, RECYCLEUR, NAVETTE, manque, type Cost } from '../data/rules';
+import { UNITS, BUILDINGS, GAME, RESEARCH, TURRETS, SHIELD, ION, RECYCLEUR, NAVETTE, GALION_PLACES, manque, type Cost } from '../data/rules';
 import { NavGrid, INF } from './nav';
 
 export type UnitKind = 'ouvrier' | 'fantassin' | 'eclaireur' | 'blinde' | 'artillerie' | 'drone' | 'navette' | 'ingenieur' | 'antiblindage' | 'intercepteur' | 'cuirasse'
   | 'tireur' | 'sam' | 'chasseurChars' | 'exo' | 'zenith' | 'avc' | 'challenger' | 'pancake' | 'grenadier' | 'huit' | 'executioner' | 'canonAA' | 'spitfire' | 'imperial' | 'garde' | 'commando' | 'vigile'
   | 'lame' | 'marteleur' | 'sabreur' | 'aether' | 'araignee' | 'araigneeCanon' | 'cogneur' | 'strikerLaser' | 'strikerMissiles' | 'strikerAssaut'
   | 'milicien' | 'hachier' | 'champion' | 'archer' | 'arbaletrier' | 'cavalier' | 'chevalier' | 'belier' | 'catapulte'
-  | 'mousquetaire' | 'canon' | 'galere' | 'galion';
+  | 'mousquetaire' | 'canon' | 'galere' | 'galion' | 'pecheur';
 /** Doctrine choisie avant la partie (vide : aucune). */
 export type Doctrine = '' | 'industrielle' | 'aeronavale' | 'frappe';
 export type Formation = 'libre' | 'ligne' | 'colonne' | 'carre';
@@ -93,7 +93,7 @@ const SHAPE: Record<UnitKind, { radius: number; wide: 0 | 1 | 2; rank: number }>
   archer: { radius: 0.5, wide: 0, rank: 2 }, arbaletrier: { radius: 0.5, wide: 0, rank: 2 },
   cavalier: { radius: 0.9, wide: 0, rank: 1 }, chevalier: { radius: 0.95, wide: 0, rank: 1 },
   belier: { radius: 1.3, wide: 1, rank: 0 }, catapulte: { radius: 1.3, wide: 1, rank: 3 },
-  mousquetaire: { radius: 0.5, wide: 0, rank: 2 }, canon: { radius: 1.2, wide: 1, rank: 3 }, galere: { radius: 2.2, wide: 2, rank: 0 }, galion: { radius: 2.8, wide: 2, rank: 0 },
+  mousquetaire: { radius: 0.5, wide: 0, rank: 2 }, canon: { radius: 1.2, wide: 1, rank: 3 }, galere: { radius: 2.2, wide: 2, rank: 0 }, pecheur: { radius: 1.4, wide: 2, rank: 0 }, galion: { radius: 2.8, wide: 2, rank: 0 },
   blinde: { radius: 1.25, wide: 1, rank: 0 },
   artillerie: { radius: 1.25, wide: 1, rank: 0 },
   ingenieur: { radius: 0.5, wide: 0, rank: 3 },
@@ -133,7 +133,7 @@ const SHAPE: Record<UnitKind, { radius: number; wide: 0 | 1 | 2; rank: number }>
   strikerMissiles: { radius: 1.25, wide: 1, rank: 0 },
   strikerAssaut: { radius: 1.3, wide: 1, rank: 0 },
 };
-const NODE_RES: Record<string, ResKind> = { glace: 'eau', arbre: 'bois', minerai: 'minerai', or: 'energie', solarite: 'solarite' };
+const NODE_RES: Record<string, ResKind> = { glace: 'eau', arbre: 'bois', minerai: 'minerai', or: 'energie', solarite: 'solarite', poisson: 'eau' };
 export const DEPOT: Record<string, ResKind[]> = { centre: ['eau', 'bois', 'minerai', 'energie'], stationEau: ['eau'], scierie: ['bois'], depotMinier: ['minerai', 'energie'], raffinerie: ['solarite'] };
 /** Bâtiments franchissables par leur camp : la porte est fermée aux autres. */
 const OPEN = new Set(['porte']);
@@ -145,7 +145,7 @@ type Job =
   | { t: 'repair' | 'capture'; b: number; phase: 'go' | 'work'; tries: number; t0: number };
 
 export interface Player { /** Équipe (camps alliés) ; -1 : camp neutre, hostile à tous (sentinelles). */ team: number; neutral?: boolean; eau: number; bois: number; minerai: number; energie: number; solarite: number; pop: number; popCap: number; ere: number; research: Set<string>; doctrine: Doctrine; /** Faction (indice dans GAME.factions) : style et unités propres. */ faction: number; /** Barrière ionique allumée (après la recherche). */ ion?: boolean }
-export interface ResNode { id: number; kind: 'glace' | 'arbre' | 'minerai' | 'or' | 'solarite'; res: ResKind; x: number; z: number; r: number; amount: number; /** Recycleur : bâtiment associé (source infinie, un seul ouvrier). */ b: number }
+export interface ResNode { id: number; kind: 'glace' | 'arbre' | 'minerai' | 'or' | 'solarite' | 'poisson'; res: ResKind; x: number; z: number; r: number; amount: number; /** Recycleur : bâtiment associé (source infinie, un seul ouvrier). */ b: number }
 export interface Building {
   id: number; owner: number; kind: string; x: number; z: number; r: number; hp: number; maxHp: number;
   progress: number; done: boolean; queue: { kind: UnitKind; left: number; total: number }[];
@@ -572,7 +572,7 @@ export class Sim {
 
   private nearestNode(x: number, z: number, kind: string | null, maxD: number): ResNode | null {
     let best: ResNode | null = null, bd = maxD;
-    for (const n of this.nodes) { if (n.amount <= 0 || n.b >= 0 || (kind && n.kind !== kind)) continue; const d = Math.hypot(n.x - x, n.z - z); if (d < bd) { bd = d; best = n; } }
+    for (const n of this.nodes) { if (n.amount <= 0 || n.b >= 0 || (kind ? n.kind !== kind : n.kind === 'poisson')) continue; const d = Math.hypot(n.x - x, n.z - z); if (d < bd) { bd = d; best = n; } }
     return best;
   }
   /** Zone de terre d'un bâtiment (case libre la plus proche de son bord), mise en cache. */
@@ -584,6 +584,7 @@ export class Sim {
   }
   private nearestDepot(u: Unit, res: ResKind): Building | null {
     let best: Building | null = null, bd = INF;
+    if (u.kind === 'pecheur') { for (const b of this.buildings) { if (b.owner !== u.owner || !b.done || b.kind !== 'quai') continue; const d = Math.hypot(b.x - u.x, b.z - u.z); if (d < bd) { bd = d; best = b; } } return best; }
     const uc = this.nav.cell(u.x, u.z), ur = uc >= 0 ? this.nav.region[uc] : -1;
     for (const b of this.buildings) {
       if (b.owner !== u.owner || !b.done || !DEPOT[b.kind]?.includes(res)) continue;
@@ -595,7 +596,8 @@ export class Sim {
   }
   private startGather(u: Unit, n: ResNode) {
     if (n.b >= 0 && this.units.some((v) => v !== u && v.job?.t === 'gather' && v.job.node === n.id)) { this.msg(u.owner, 'Le recycleur a déjà son ouvrier'); return; }
-    if (!this.buildings.some((b) => b.owner === u.owner && b.done && DEPOT[b.kind]?.includes(n.res))) { this.msg(u.owner, n.res === 'solarite' ? 'Construis une Raffinerie pour récolter la solarite' : 'Aucun dépôt disponible'); return; }
+    if ((u.kind === 'pecheur') !== (n.kind === 'poisson')) return;   // la pêche aux bateaux, le reste aux villageois
+    if (!this.buildings.some((b) => b.owner === u.owner && b.done && (u.kind === 'pecheur' ? b.kind === 'quai' : DEPOT[b.kind]?.includes(n.res)))) { this.msg(u.owner, n.res === 'solarite' ? 'Construis une Raffinerie pour récolter la solarite' : 'Aucun dépôt disponible'); return; }
     u.working = false; u.lastNode = n.id;
     // Chargé d'une autre ressource : il passe d'abord la déposer, puis va au nouveau gisement (rien n'est perdu).
     if (u.carry >= 1 && u.carryKind && u.carryKind !== n.res && this.nearestDepot(u, u.carryKind)) {
@@ -635,19 +637,19 @@ export class Sim {
       }
       if (j.phase === 'go') {
         if (u.group) return;
-        if (Math.hypot(n.x - u.x, n.z - u.z) <= n.r + u.radius + 1.7) { j.phase = 'work'; u.working = true; u.heading = Math.atan2(n.x - u.x, n.z - u.z); }
+        if (Math.hypot(n.x - u.x, n.z - u.z) <= n.r + u.radius + (u.wide === 2 ? 3.5 : 1.7)) { j.phase = 'work'; u.working = true; u.heading = Math.atan2(n.x - u.x, n.z - u.z); }
         else if (j.tries++ < 4) this.approach(u, n.x, n.z, n.r, j.tries * 0.9);
         else u.job = null;
       } else if (j.phase === 'work') {
         const rate = (n.b >= 0 ? RECYCLEUR.parSeconde : GAME.recolteParSeconde) * (this.players[u.owner].research.has('recolte') ? 1.2 : 1) * (this.players[u.owner].doctrine === 'industrielle' ? 1.15 : 1);
-        const take = Math.min(rate * DT, n.amount, GAME.chargeOuvrier - u.carry);
+        const cap = GAME.chargeOuvrier * (u.kind === 'pecheur' ? 2 : 1), take = Math.min(rate * DT, n.amount, cap - u.carry);
         u.carry += take; u.carryKind = n.res; n.amount -= take;
         if (n.amount <= 0.001 && n.b < 0) { n.amount = 0; this.nav.setDisc(n.x, n.z, n.r, false); this.events.push({ t: 'depleted', node: n.id }); }
-        if (u.carry >= GAME.chargeOuvrier - 0.001 || n.amount <= 0) { j.phase = 'return'; u.working = false; this.toDepot(u, j); }
+        if (u.carry >= cap - 0.001 || n.amount <= 0) { j.phase = 'return'; u.working = false; this.toDepot(u, j); }
       } else {
         if (u.group) return;
         const d = this.bById.get(j.depot);
-        if (d && Math.hypot(d.x - u.x, d.z - u.z) <= d.r + u.radius + 1.7) {
+        if (d && Math.hypot(d.x - u.x, d.z - u.z) <= d.r + u.radius + (u.wide === 2 ? 5 : 1.7)) {
           if (u.carryKind) { this.players[u.owner][u.carryKind] += Math.round(u.carry); this.stats[u.owner].recolte += Math.round(u.carry); this.stats[u.owner].rec[u.carryKind] += Math.round(u.carry); }
           u.carry = 0; u.carryKind = null; j.tries = 0;
           if (n.amount > 0) { j.phase = 'go'; this.approach(u, n.x, n.z, n.r, ((u.id % 5) - 2) * 0.3); }
@@ -707,7 +709,7 @@ export class Sim {
       P.forEach((p, i) => { const d = Math.hypot(p.x - u.x, p.z - u.z); if (d < bd) { bd = d; bi = i; } });
       u.patrol = bi; this.moveGroup([u], P[bi].x, P[bi].z, 'libre');
     } }
-    else if (o.type === 'gather') { const n = this.nodes[o.node]; if (n && n.amount > 0) for (const u of mine(o.ids)) if (u.kind === 'ouvrier') { u.fleeT = -99; this.startGather(u, n); } }
+    else if (o.type === 'gather') { const n = this.nodes[o.node]; if (n && n.amount > 0) for (const u of mine(o.ids)) if (u.kind === 'ouvrier' || u.kind === 'pecheur') { u.fleeT = -99; this.startGather(u, n); } }
     else if (o.type === 'repair') {
       const b = this.bById.get(o.b);
       if (!b || !b.done || b.hp >= b.maxHp) return;
@@ -719,7 +721,7 @@ export class Sim {
       for (const u of us) { reset(u); u.job = { t: 'capture', b: b.id, phase: 'go', tries: 0, t0: 0 }; u.working = false; this.approach(u, b.x, b.z, b.r, ((u.id % 5) - 2) * 0.35); }
     } else if (o.type === 'ferry') {
       const nv = this.byId.get(o.navette);
-      if (!nv || nv.kind !== 'navette') return;
+      if (!nv || !Sim.carrier(nv)) return;
       this.applyOrder({ type: 'load', ids: o.ids, navette: o.navette });
       nv.ferryTo = { x: o.x, z: o.z };
     }
@@ -748,19 +750,30 @@ export class Sim {
       b.queue.push({ kind: o.kind, left: rule.temps, total: rule.temps });
     } else if (o.type === 'load') {
       const nv = this.byId.get(o.navette);
-      if (!nv || nv.kind !== 'navette') return;
-      const us = mine(o.ids).filter((u) => !u.fly && u.owner === nv.owner);
+      if (!nv || !Sim.carrier(nv)) return;
+      const us = mine(o.ids).filter((u) => !u.fly && u.wide !== 2 && u.owner === nv.owner);
       if (!us.length) return;
       us.forEach(reset);
       for (const u of us) { u.board = nv.id; u.boardT = -99; }
       // La navette vient se poser près du groupe.
       let cx = 0, cz = 0; for (const u of us) { cx += u.x; cz += u.z; } cx /= us.length; cz /= us.length;
-      if (Math.hypot(nv.x - cx, nv.z - cz) > 5) { nv.drop = null; this.moveGroup([nv], cx, cz, 'libre'); }
+      if (nv.wide === 2) {
+        // Galion : il vient sur l'eau la plus proche du groupe.
+        const c = this.nav.nearestFree(cx, cz, 2, undefined, undefined, 30);
+        if (c >= 0 && Math.hypot(nv.x - this.nav.cx(c), nv.z - this.nav.cz(c)) > 3) { nv.drop = null; this.moveGroup([nv], this.nav.cx(c), this.nav.cz(c), 'libre'); }
+      } else if (Math.hypot(nv.x - cx, nv.z - cz) > 5) { nv.drop = null; this.moveGroup([nv], cx, cz, 'libre'); }
     } else if (o.type === 'unload') {
       const nv = this.byId.get(o.id);
-      if (!nv || nv.kind !== 'navette') return;
+      if (!nv || !Sim.carrier(nv)) return;
       let dx = o.x, dz = o.z;
-      if (!this.nav.walkable(dx, dz, 0)) {
+      if (nv.wide === 2) {
+        // Galion : il accoste sur l'eau la plus proche du point de débarquement.
+        // (l'eau atteignable depuis le navire la plus proche du point visé, même loin à l'intérieur des terres).
+        const f = this.nav.field(nv.x, nv.z, 2), W = this.nav.blocked[2]; let c = -1, bd = INF;
+        for (let k = 0; k < W.length; k++) { if (W[k] || f[k] >= 1e8) continue; const d = Math.hypot(this.nav.cx(k) - dx, this.nav.cz(k) - dz); if (d < bd) { bd = d; c = k; } }
+        if (c < 0 || bd > 60) return this.msg(nv.owner, 'Pas d\'eau navigable près de ce rivage');
+        dx = this.nav.cx(c); dz = this.nav.cz(c);
+      } else if (!this.nav.walkable(dx, dz, 0)) {
         // Point occupé (gisement, rocher) : on se pose sur la case libre la plus proche.
         const c = this.nav.nearestFree(dx, dz, 0, undefined, undefined, 8);
         if (c < 0) return this.msg(nv.owner, 'Impossible de débarquer ici');
@@ -855,7 +868,7 @@ export class Sim {
       const u = this.spawn(q.kind, b.owner, b.x + ax / al * (b.r + 1.2), b.z + az / al * (b.r + 1.2));
       p.pop += UNITS[q.kind].pop; const st = this.stats[b.owner]; st.produits++; st.produitsPar[q.kind] = (st.produitsPar[q.kind] ?? 0) + 1; if (q.kind === 'ouvrier') st.ouvriersProduits++;
       this.events.push({ t: 'ready', owner: b.owner, kind: q.kind });
-      if (rl) { const n = this.nodes[rl.node]; if (n && n.amount > 0 && u.kind === 'ouvrier') this.startGather(u, n); else this.moveGroup([u], rl.x, rl.z, 'libre'); }
+      if (rl) { const n = this.nodes[rl.node]; if (n && n.amount > 0 && (u.kind === 'ouvrier' || u.kind === 'pecheur')) this.startGather(u, n); else this.moveGroup([u], rl.x, rl.z, 'libre'); }
     }
     if (this.tick % 5 === 0) this.patrolStep();
     if (this.tick % 10 === 0) {
@@ -888,8 +901,8 @@ export class Sim {
       u.px = u.x; u.pz = u.z;
       if (u.cd > 0) u.cd -= DT;
       if (u.board >= 0) this.boarding(u);
-      if (u.kind === 'navette') this.shuttle(u);
-      else if (u.job) this.workers(u); else if (u.kind !== 'ouvrier') this.combat(u);
+      if (Sim.carrier(u)) this.shuttle(u);
+      else if (u.job) this.workers(u); else if (u.kind === 'pecheur') { if (this.tick % 20 === u.id % 20 && !u.moving) { const f = this.nearestNode(u.x, u.z, 'poisson', 40); if (f) this.startGather(u, f); } } else if (u.kind !== 'ouvrier') this.combat(u);
       const g = u.group;
       if (!g) {
         // Une unité à sa place qui se fait bousculer y retourne (pendant 15 s après son arrivée).
@@ -952,9 +965,9 @@ export class Sim {
   /** Unité au sol qui rejoint une navette pour embarquer. */
   private boarding(u: Unit) {
     const nv = this.byId.get(u.board);
-    const full = !!nv && this.navUsed(nv) + this.slot(u) > this.navCap(nv.owner);
+    const full = !!nv && this.navUsed(nv) + this.slot(u) > this.navCap(nv.owner, nv);
     if (!nv || nv.hp <= 0 || full) { if (full) this.msg(u.owner, 'La navette est pleine'); u.board = -1; return; }
-    if (Math.hypot(nv.x - u.x, nv.z - u.z) <= 3.6 && !nv.moving) {
+    if (Math.hypot(nv.x - u.x, nv.z - u.z) <= (nv.wide === 2 ? nv.radius + 11 : 3.6) && !nv.moving) {
       // Embarquement : l'unité quitte le terrain et voyage dans la soute.
       this.halt(u); u.board = -1; u.job = null; u.working = false;
       nv.cargo.push(u); this.boarded.push(u);
@@ -970,10 +983,10 @@ export class Sim {
     }
     if (nv.ferryTo && !nv.cargo.length && !this.units.some((u) => u.board === nv.id) && this.tick % 50 === 0) nv.ferryTo = null;
     if (!nv.drop || nv.group) return;
-    if (Math.hypot(nv.x - nv.drop.x, nv.z - nv.drop.z) > 3) { nv.drop = null; return; }
+    if (Math.hypot(nv.x - nv.drop.x, nv.z - nv.drop.z) > (nv.wide === 2 ? 9 : 3)) { nv.drop = null; return; }
     const taken = new Set<number>(), left: Unit[] = [];
     for (const u of nv.cargo) {
-      const c = this.nav.nearestFree(nv.x, nv.z, u.wide, taken, undefined, 7);
+      const c = this.nav.nearestFree(nv.x, nv.z, u.wide, taken, undefined, nv.wide === 2 ? 14 : 7);
       if (c < 0) { left.push(u); continue; }
       taken.add(c);
       u.x = u.px = this.nav.cx(c); u.z = u.pz = this.nav.cz(c); u.slotX = u.x; u.slotZ = u.z; u.group = null; u.moving = false;
@@ -986,7 +999,9 @@ export class Sim {
   private boarded: Unit[] = [];
   /** Places occupées dans une navette : 1 par fantassin, 2 pour un éclaireur, 3 pour un véhicule lourd. */
   slot(u: Unit): number { return u.wide ? 3 : u.kind === 'eclaireur' ? 2 : 1; }
-  navCap(owner: number): number { const P = this.players[owner]; return NAVETTE.places + (P.research.has('propulseurs') ? 2 : 0) + (P.doctrine === 'aeronavale' ? 2 : 0); }
+  /** Transporteur : la navette (toutes époques) ou le galion. */
+  static carrier(u: Unit): boolean { return u.kind === 'navette' || u.kind === 'galion'; }
+  navCap(owner: number, nv?: Unit): number { if (nv?.kind === 'galion') return GALION_PLACES; const P = this.players[owner]; return NAVETTE.places + (P.research.has('propulseurs') ? 2 : 0) + (P.doctrine === 'aeronavale' ? 2 : 0); }
   navUsed(nv: Unit): number { return nv.cargo.reduce((a, c) => a + this.slot(c), 0); }
   /** Coût réel d'un bâtiment (Réseau énergétique, doctrine Industrielle). */
   buildCost(owner: number, kind: string): Cost {
@@ -1280,7 +1295,7 @@ export class Sim {
         const a = H.get(((kx + dx + 512) << 10) | (kz + dz + 512));
         if (!a) continue;
         for (const v of a) {
-          if (v.id <= u.id || v.fly !== u.fly) continue;
+          if (v.id <= u.id || v.fly !== u.fly || (u.wide === 2) !== (v.wide === 2) || (u.wide === 2 && (u.working || v.working))) continue;   // navires : à part ; ils croisent les pêcheurs au travail
           let ex = v.x - u.x, ez = v.z - u.z;
           // les ouvriers au travail ou en trajet de récolte se croisent sans se gêner (comme dans AoE)
           const soft = u.job && v.job ? 0.45 : 1;
