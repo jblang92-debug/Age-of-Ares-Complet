@@ -6,10 +6,10 @@ import { GAME } from '../data/rules';
 
 export type SlotKind = 'humain' | 'ouvert' | 'ia-facile' | 'ia-normal' | 'ia-difficile' | 'ferme';
 export interface Slot { kind: SlotKind; name?: string; token?: string; conn?: string; faction: number; team: number; ready?: boolean }
-export interface LobbyState { code: string; slots: Slot[]; size: string; kind: string; res: string; fog: boolean }
+export interface LobbyState { code: string; slots: Slot[]; size: string; kind: string; res: string; fog: boolean; /** Âge de départ (1 Antiquité, 2 Moyen Âge, 4 moderne). */ age?: number }
 /** Configuration d'une partie en ligne, gardée par chaque joueur (sert aussi à revenir après une coupure). */
 export interface OnlineConfig {
-  code: string; nonce: string; seed: number; size: string; kind: string; players: 'duel' | 'ffa'; res: string; fog: boolean;
+  code: string; nonce: string; seed: number; size: string; kind: string; players: 'duel' | 'ffa'; res: string; fog: boolean; age?: number;
   sides: { name: string; human: boolean; level: string; faction: number; team: number; token?: string }[];
   me: number; host: boolean; token: string; at: number;
 }
@@ -24,6 +24,7 @@ const KIND_TXT: Record<SlotKind, string> = { humain: 'Joueur', ouvert: 'Place li
 const SIZES: [string, string][] = [['petite', 'Petite'], ['moyenne', 'Moyenne'], ['grande', 'Grande']];
 const KINDS: [string, string][] = [['terre', 'Terre ferme'], ['cotiere', 'Côtière'], ['continentale', 'Continentale'], ['mont', 'Mont de solarite'], ['rivieres', 'Rivières'], ['grandesiles', 'Grandes îles'], ['petitesiles', 'Petites îles']];
 const RES: [string, string][] = [['normales', 'Normales'], ['riches', 'Riches']];
+const AGES: [string, string][] = [['1', 'Départ : Antiquité'], ['2', 'Départ : Moyen Âge'], ['4', 'Départ : âge moderne']];
 const KINDS_4 = new Set(['terre', 'continentale', 'rivieres', 'grandesiles']);
 
 /** Lien à partager : ouvre le jeu directement sur le salon. */
@@ -155,13 +156,13 @@ export class Lobby {
       return `<tr class="${mine ? 'me' : ''}${off ? ' off' : ''}"><td>${i + 1}</td><td>${who}</td><td>${f}</td><td>${t}</td><td>${r}</td></tr>`;
     }).join('');
     const pb = host ? this.problems() : [];
-    const mapTxt = `${SIZES.find(([k]) => k === st.size)?.[1]} · ${KINDS.find(([k]) => k === st.kind)?.[1]} · ressources ${st.res} · brouillard ${st.fog ? 'oui' : 'non'}`;
+    const mapTxt = `${SIZES.find(([k]) => k === st.size)?.[1]} · ${KINDS.find(([k]) => k === st.kind)?.[1]} · ressources ${st.res} · brouillard ${st.fog ? 'oui' : 'non'} · ${AGES.find(([k]) => +k === (st.age ?? 1))?.[1].toLowerCase()}`;
     $('online').innerHTML = `<div class="on-box">
       <h3>Salon <span class="on-code">${st.code}</span></h3>
       <div class="on-row"><button id="on-share" class="on-main">Inviter (lien)</button><button id="on-copy">Copier le code</button></div>
       <table class="on-slots"><tr><th>#</th><th>Joueur</th><th>Faction</th><th>Équipe</th><th></th></tr>${rows}</table>
       <p class="on-help">Même équipe = alliés. Équipes toutes différentes = chacun pour soi.</p>
-      ${host ? `<div class="on-row"><select id="on-size">${opt(SIZES, st.size)}</select><select id="on-kind">${opt(KINDS, st.kind)}</select><select id="on-res">${opt(RES, st.res)}</select><select id="on-fog"><option value="1"${st.fog ? ' selected' : ''}>Brouillard</option><option value="0"${!st.fog ? ' selected' : ''}>Sans brouillard</option></select></div>` : `<p class="on-help">Carte : ${mapTxt}</p>`}
+      ${host ? `<div class="on-row"><select id="on-size">${opt(SIZES, st.size)}</select><select id="on-kind">${opt(KINDS, st.kind)}</select><select id="on-res">${opt(RES, st.res)}</select><select id="on-age">${opt(AGES, String(st.age ?? 1))}</select><select id="on-fog"><option value="1"${st.fog ? ' selected' : ''}>Brouillard</option><option value="0"${!st.fog ? ' selected' : ''}>Sans brouillard</option></select></div>` : `<p class="on-help">Carte : ${mapTxt}</p>`}
       <p class="on-status${pb.length ? ' bad' : ''}">${host ? (pb.length ? 'Pour lancer : ' + pb.join(' ; ') + '.' : 'Tout est prêt !') : st.slots[me]?.ready ? 'Prêt : en attente du lancement par l\'hôte.' : 'Choisis ta faction et ton équipe, puis « Je suis prêt ».'}</p>
       <div class="on-row end"><button id="on-leave">Quitter le salon</button>${host ? `<button id="on-go" class="on-main"${pb.length ? ' disabled' : ''}>LANCER</button>` : `<button id="on-ready" class="on-main">${st.slots[me]?.ready ? 'Pas prêt' : 'Je suis prêt'}</button>`}</div></div>`;
     $('on-leave').onclick = () => this.close();
@@ -179,6 +180,7 @@ export class Lobby {
       ($('on-size') as HTMLSelectElement).onchange = (e) => { st.size = (e.target as HTMLSelectElement).value; this.sync(); };
       ($('on-kind') as HTMLSelectElement).onchange = (e) => { st.kind = (e.target as HTMLSelectElement).value; this.sync(); };
       ($('on-res') as HTMLSelectElement).onchange = (e) => { st.res = (e.target as HTMLSelectElement).value; this.sync(); };
+      ($('on-age') as HTMLSelectElement).onchange = (e) => { st.age = +(e.target as HTMLSelectElement).value; this.sync(); };
       ($('on-fog') as HTMLSelectElement).onchange = (e) => { st.fog = (e.target as HTMLSelectElement).value === '1'; this.sync(); };
       $('on-go').onclick = () => this.go();
     } else $('on-ready').onclick = () => this.set({ ready: !st.slots[me]?.ready });
@@ -190,7 +192,7 @@ export class Lobby {
     const act = st.slots.map((s, i) => ({ s, i })).filter(({ s }) => s.kind !== 'ferme' && s.kind !== 'ouvert');
     const base: OnlineConfig = {
       code: st.code, nonce: randomCode(4), seed: 1 + Math.floor(Math.random() * 999999), size: act.length === 4 && st.size === 'petite' ? 'moyenne' : st.size, kind: st.kind,
-      players: act.length === 2 ? 'duel' : 'ffa', res: st.res, fog: st.fog,
+      players: act.length === 2 ? 'duel' : 'ffa', res: st.res, fog: st.fog, age: st.age ?? 1,
       sides: act.map(({ s }) => ({ name: s.kind === 'humain' ? s.name || 'Joueur' : KIND_TXT[s.kind], human: s.kind === 'humain', level: s.kind.startsWith('ia-') ? s.kind.slice(3) : 'normal', faction: s.faction, team: s.team, token: s.token })),
       me: 0, host: true, token: myToken(), at: Date.now(),
     };

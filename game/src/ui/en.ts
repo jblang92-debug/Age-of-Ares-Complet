@@ -22,6 +22,9 @@ export const EN_NAMES: Record<string, string> = {
 };
 export const EN: Record<string, string> = {
   // --- Ressources façon Age of Empires
+  'Âge de la poudre': 'Gunpowder Age', 'Mousquetaire': 'Musketeer', 'Canon': 'Cannon', 'Galère de guerre': 'War galley', 'Galion à canons': 'Cannon galleon',
+  'Départ : Antiquité': 'Start: Antiquity', 'Départ : Moyen Âge': 'Start: Middle Ages', 'Départ : âge moderne': 'Start: modern age', 'Archers, arbalétriers, mousquetaires': 'Archers, crossbowmen, musketeers',
+  'Béliers, catapultes, canons': 'Rams, catapults, cannons', 'Transport, navires de guerre aux âges anciens ; au bord de l\'eau': 'Transport, warships in early ages; on the shore',
   'Nourriture': 'Food', 'Bois': 'Wood', 'Pierre': 'Stone', 'Or': 'Gold', 'nourriture': 'food', 'bois': 'wood', 'pierre': 'stone', 'or': 'gold',
   'Pas assez de nourriture': 'Not enough food', 'Pas assez de bois': 'Not enough wood', 'Pas assez de pierre': 'Not enough stone', 'Pas assez d\'or': 'Not enough gold',
   '5 nourriture': '# food', '5 bois': '# wood', '5 pierre': '# stone', '5 or': '# gold',

@@ -4,7 +4,7 @@ import type { Sim, Building } from '../sim/sim';
 import { spawn } from './assets';
 import { TEAM_COLORS, colorIndex, altStyle } from './units';
 import type { Effects } from './effects';
-import { SHIELD, TURRETS } from '../data/rules';
+import { SHIELD, TURRETS, lookAge } from '../data/rules';
 import { WallViews, wallPairs, makeGate, makeTurret, animateTurret, turretFired, TURRET_KINDS, type WallNode } from './defenses';
 
 type BLook = { model: string; footprint?: number; height?: number; roof?: { model: string; footprint: number };
@@ -215,7 +215,7 @@ export class BuildingViews {
 
   /** Style d'un bâtiment selon l'âge de son camp : 1 (Antiquité), 2 (Moyen Âge), 3 (moderne), 4 (industriel), 5 (galactique). */
   private style(b: Building): number {
-    const ere = this.sim.players[b.owner]?.ere ?? 3;
+    const ere = lookAge(this.sim.players[b.owner]?.ere ?? 4);
     if (b.kind === 'porte') return Math.min(ere, 3);
     if (ere === 1 && LOOKS_A1[b.kind]) return 1;
     if (ere === 2 && (LOOKS_A2[b.kind] || LOOKS_A1[b.kind])) return LOOKS_A2[b.kind] ? 2 : 1;
@@ -268,7 +268,7 @@ export class BuildingViews {
       if (view) view.visible = vis > 0;
       if (b.kind === 'mur' || b.kind === 'porte') {
         const dir = this.gateDir.get(b.id) ?? [1, 0];
-        this.nodes.set(b.id, { id: b.id, x: b.x, z: b.z, y, grow, vis, color: COLORS[colorIndex(this.sim, b.owner)], gate: b.kind === 'porte', dx: dir[0], dz: dir[1], ion: !!this.sim.players[b.owner].ion && b.done, style: Math.min(3, this.sim.players[b.owner]?.ere ?? 3) });
+        this.nodes.set(b.id, { id: b.id, x: b.x, z: b.z, y, grow, vis, color: COLORS[colorIndex(this.sim, b.owner)], gate: b.kind === 'porte', dx: dir[0], dz: dir[1], ion: !!this.sim.players[b.owner].ion && b.done, style: Math.min(3, lookAge(this.sim.players[b.owner]?.ere ?? 4)) });
       }
       if (vis === 0) { const d = this.domes.get(b.id); if (d) d.visible = false; if (b.kind !== 'mur' && !view) this.create(b).visible = false; continue; }
       if (b.kind === 'mur') { /* dessiné par WallViews */ }

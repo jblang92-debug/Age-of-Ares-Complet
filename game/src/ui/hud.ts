@@ -7,7 +7,7 @@ export interface MapChoice { seed: number; size: string; kind: string; players: 
 import * as THREE from 'three';
 import type { TerrainMap } from '../mapgen/terrain';
 import type { RtsCamera } from '../input/camera';
-import { GAME, RES_NOM } from '../data/rules';
+import { GAME, RES_NOM, lookAge } from '../data/rules';
 import { BASE } from '../render/assets';
 import type { Controller } from '../input/controller';
 import { orient } from './orient';
@@ -25,10 +25,14 @@ const ICONS = new Set(['b_centre', 'b_depotMinier', 'b_centrale', 'b_habitat', '
   'b_arene', 'b_atelier', 'u_lame', 'u_marteleur', 'u_sabreur', 'u_aether', 'u_araignee', 'u_araigneeCanon', 'u_cogneur', 'u_strikerLaser', 'u_strikerMissiles', 'u_strikerAssaut',
   'u_tireur', 'u_grenadier', 'u_garde', 'u_commando', 'u_vigile', 'u_exo', 'u_sam', 'u_chasseurChars', 'u_avc', 'u_huit', 'u_canonAA', 'u_challenger', 'u_spitfire', 'u_zenith', 'u_pancake', 'u_executioner', 'u_imperial',
   'u_milicien', 'u_hachier', 'u_champion', 'u_archer', 'u_arbaletrier', 'u_cavalier', 'u_chevalier', 'u_belier', 'u_catapulte', 'b_archerie', 'b_ecurie', 'b_atelierSiege',
+  'u_mousquetaire', 'u_canon', 'u_galere', 'u_galion', 'u_ouvrier_a', 'u_navette_a',
+  ...['centre', 'habitat', 'stationEau', 'scierie', 'depotMinier', 'recycleur', 'caserne', 'archerie', 'ecurie', 'quai', 'tourelle', 'porte'].flatMap((k) => [`b_${k}_a1`, `b_${k}_a2`]), 'b_atelierSiege_a2',
   'a_stop', 'a_repli', 'a_agressive', 'a_defensive', 'a_tenir', 'a_passive', 'a_debarquer', 'a_reparer', 'a_capturer', 'a_transporter']);
 /** Recherches sans illustration propre : on réutilise une icône proche. */
 const ALIAS: Record<string, string> = { t_barriere: 'b_bouclier' };
-const icon = (n: string) => (n = ALIAS[n] ?? n, ICONS.has(n))  ? `<img src="${UI('icons/' + n + '.png')}" alt=""/>` : '';
+/** Icône d'un bâtiment ou d'une unité, dans la version de l'âge du joueur quand elle existe (Antiquité, Moyen Âge et poudre). */
+const ageIcon = (n: string, ere?: number) => { if (!ere || ere > 3) return n; const v = n.startsWith('b_') ? `${n}_a${Math.min(ere, 2)}` : `${n}_a`; return ICONS.has(v) ? v : n; };
+const icon = (n: string, ere?: number) => (n = ALIAS[ageIcon(n, ere)] ?? ageIcon(n, ere), ICONS.has(n))  ? `<img src="${UI('icons/' + n + '.png')}" alt=""/>` : '';
 const RES = ['eau', 'bois', 'minerai', 'energie', 'solarite'] as const;
 const pills = (c: object) => `<span class="cost">${RES.filter((k) => (c as Record<string, number>)[k]).map((k) => `<b class="p-${k}">${(c as Record<string, number>)[k]}</b>`).join('')}</span>`;
 
@@ -162,7 +166,7 @@ export class Hud {
     window.addEventListener('resize', () => setTimeout(fit, 50));
     /** Bouton avec icône, nom et pastilles de coût (grisé si on ne peut pas payer). */
     const ib = (attrs: string, ic: string, name: string, c: object, extra = '') =>
-      `<button ${attrs} class="ib${sim.canPay(ctrl.player, c) ? ' no' : ''}">${icon(ic)}<span class="tx"><span class="nm">${name}</span>${pills(c)}</span>${extra}</button>`;
+      `<button ${attrs} class="ib${sim.canPay(ctrl.player, c) ? ' no' : ''}">${icon(ic, sim.players[ctrl.player]?.ere)}<span class="tx"><span class="nm">${name}</span>${pills(c)}</span>${extra}</button>`;
     void short;
     const refresh = () => {
       const n = ctrl.selection.size, b = ctrl.building >= 0 ? sim.building(ctrl.building) : undefined;
@@ -178,7 +182,7 @@ export class Hud {
         const one = n === 1 ? sim.get([...ctrl.selection][0]) : undefined;
         const vet = one ? (one.vet ? ` <span class="vet">${'★'.repeat(one.vet)}</span>` : '') + (one.kind !== 'ouvrier' ? ` <small>· ${one.xp} élimination${one.xp > 1 ? 's' : ''}</small>` : '') : '';
         const kinds = Object.keys(count);
-        html = `<div id="sel-info">${n} unité${n > 1 ? 's' : ''}${vet} <small>· ${Object.entries(count).map(([k, c]) => `${c} ${nomUnit(k, sim.players[ctrl.player]?.ere ?? 3).toLowerCase()}${c > 1 ? 's' : ''}`).join(', ')}</small>${kinds.length === 1 ? ` <button data-sheet="${kinds[0]}" class="info" title="Fiche de l'unité">ⓘ</button>` : ''}</div>`;
+        html = `<div id="sel-info">${n} unité${n > 1 ? 's' : ''}${vet} <small>· ${Object.entries(count).map(([k, c]) => `${c} ${nomUnit(k, sim.players[ctrl.player]?.ere ?? 4).toLowerCase()}${c > 1 ? 's' : ''}`).join(', ')}</small>${kinds.length === 1 ? ` <button data-sheet="${kinds[0]}" class="info" title="Fiche de l'unité">ⓘ</button>` : ''}</div>`;
         if (count.ouvrier) {
           const ere = sim.players[ctrl.player].ere;
           html += `<div class="row tabs">${Object.entries(CATS).map(([k, c]) => `<button data-cat="${k}" class="${cat === k ? 'on' : ''}">${c.nom}</button>`).join('')}</div>`;
@@ -206,13 +210,13 @@ export class Hud {
         if (tips.length) html += `<div class="row grid">${tips.join('')}</div>`;
         html += `<div class="row g3"><button data-act="stop" class="ib cmd">${icon('a_stop')}Stop</button><button data-act="desel">Fermer</button><button data-act="kill" class="danger${killArm ? ' arm' : ''}">${killArm ? 'Confirmer ?' : 'Détruire'}</button></div>`;
       } else if (b) {
-        html = `<div id="sel-info">${nomBat(b.kind, sim.players[b.owner]?.ere ?? 3)} <small id="b-info"></small></div>`;
+        html = `<div id="sel-info">${nomBat(b.kind, sim.players[b.owner]?.ere ?? 4)} <small id="b-info"></small></div>`;
         const P = sim.players[ctrl.player];
         const makes = Object.entries(UNITS).filter(([, r]) => r.produitA === b.kind && dispo(r, P.ere) && (r.faction === undefined || r.faction === P.faction));
         const queued = (k: string) => { const c = b.queue.filter((q) => q.kind === k).length; return (c ? `<em class="cnt">${c}</em>` : '') + (b.queue[0]?.kind === k ? `<span class="prog"><span id="prog-${k}"></span></span>` : ''); };
         if (makes.length && b.done) html += `<div class="row"><button data-act="batch" class="batch${batch > 1 ? ' on' : ''}" title="Produire par 5">×${batch}</button><small class="hint2">appui long sur une unité : sa fiche</small></div>`;
         if (makes.length && b.done) html += `<div class="row grid">${makes.map(([k, r]) => ib(`data-train="${k}" title="${nomUnit(k, P.ere)}"`, 'u_' + k, nomUnit(k, P.ere), r.cout, queued(k))).join('')}${b.kind === 'centre' && P.ere < GAME.eres.length && !b.task ? ib('data-act="age"', P.ere >= 4 ? 'a_ere3' : 'a_ere', GAME.eres[P.ere].nom, (GAME.eres[P.ere] as { cout: object }).cout) : ''}</div><div id="b-hint">Touche le sol${b.kind === 'centre' ? ' ou un gisement' : ''} pour fixer le point de ralliement.</div>`;
-        else if (b.kind === 'labo' && b.done && !b.task) html += `<div class="row grid">${Object.entries(RESEARCH).filter(([k, r]) => !P.research.has(k) && (r.ere ?? 4) <= P.ere).map(([k, r]) => ib(`data-research="${k}" title="${r.effet}"`, 't_' + k, r.nom, r.cout)).join('')}</div>`;
+        else if (b.kind === 'labo' && b.done && !b.task) html += `<div class="row grid">${Object.entries(RESEARCH).filter(([k, r]) => !P.research.has(k) && (r.ere ?? 5) <= P.ere).map(([k, r]) => ib(`data-research="${k}" title="${r.effet}"`, 't_' + k, r.nom, r.cout)).join('')}</div>`;
         if ((b.kind === 'mur' || b.kind === 'porte') && b.owner === ctrl.player && P.research.has('barriere'))
           html += `<div class="row"><button data-act="ion" class="ib cmd${P.ion ? ' on' : ''}" title="Les appareils ennemis ne peuvent plus franchir tes murs et portes">${icon('t_barriere')}<span class="tx"><span class="nm">Barrière ionique</span><i>${P.ion ? 'activée · ' + sim.ionCost(ctrl.player) + ' én./s' : 'coupée · touche pour l\'activer'}</i></span></button></div>`;
         html += `<div class="row g3"><button data-act="desel">Fermer</button>${b.kind !== 'centre' ? `<button data-act="kill" class="danger${killArm ? ' arm' : ''}">${killArm ? 'Confirmer ?' : 'Détruire'}</button>` : ''}</div>`;
@@ -436,7 +440,7 @@ export class Hud {
     const NAMES: Record<string, string> = { duel: '1 contre 1', ffa: '4 joueurs, chacun pour soi', equipes: '2 contre 2', facile: 'IA facile', normal: 'IA normale', difficile: 'IA difficile', industrielle: 'Industrielle', aeronavale: 'Aéronavale', frappe: 'Frappe' };
     const sum = () => {
       const K = MAP_KINDS.find((k) => k.key === sel.kind);
-      const bits = [opts.epoque === 'moderne' ? 'départ à l\'âge moderne' : 'de l\'Antiquité à l\'âge galactique', NAMES[sel.players], NAMES[level], mode === 'spectateur' ? 'spectateur' : GAME.factions[+opts.faction || 0] + ' · doctrine ' + NAMES[opts.doctrine], `${K?.nom ?? ''} (${(SIZE_N[sel.size] ?? '').toLowerCase()})`,
+      const bits = [opts.epoque === 'moderne' ? 'départ à l\'âge moderne' : opts.epoque === 'moyen' ? 'départ au Moyen Âge' : 'de l\'Antiquité à l\'âge galactique', NAMES[sel.players], NAMES[level], mode === 'spectateur' ? 'spectateur' : GAME.factions[+opts.faction || 0] + ' · doctrine ' + NAMES[opts.doctrine], `${K?.nom ?? ''} (${(SIZE_N[sel.size] ?? '').toLowerCase()})`,
         opts.brouillard === 'non' ? 'sans brouillard' : 'brouillard', opts.duree === 'blitz' ? 'Blitz 10 min' : '', opts.centre === 'dispute' ? 'centre disputé' : '', opts.evenements === 'tempetes' ? 'tempêtes' : '', opts.ressources === 'riches' ? 'départ riche' : opts.ressources === 'bacasable' ? 'BAC À SABLE' : ''].filter(Boolean);
       $('msum').innerHTML = bits.map((b) => `<b>${b}</b>`).join(' · ');
     };
@@ -455,9 +459,9 @@ export class Hud {
     const g = c.getContext('2d')!;
     const img = g.createImageData(S, S);
     // Même progression que le terrain 3D : vert jusqu'à l'âge moderne, puis sec, puis désert ; la mer devient le vide.
-    const k = ere >= 5 ? 1 : ere >= 3 ? 0.35 + (ere - 3) * 0.2 : 0, green = 1 - Math.min(1, k / 0.75);
+    const la = lookAge(ere), k = la >= 5 ? 1 : la >= 3 ? 0.35 + (la - 3) * 0.2 : 0, green = 1 - Math.min(1, k / 0.75);
     const OLD = [[70, 112, 50], [92, 134, 62], [120, 154, 80], [176, 160, 112], [42, 108, 150]], NEW = [[150, 86, 52], [186, 112, 68], [222, 150, 98], [240, 205, 150], [8, 6, 16]];
-    const pal = NEW.map((c, i) => i === 4 ? (ere >= 5 ? c : OLD[4]) : c.map((v, j) => v + (OLD[i][j] - v) * green));
+    const pal = NEW.map((c, i) => i === 4 ? (la >= 5 ? c : OLD[4]) : c.map((v, j) => v + (OLD[i][j] - v) * green));
     for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
       const k = (j + ext - half) * n + (i + ext - half);
       const lv = levels[k] === 4 ? 4 : map.rampMask[k] ? 3 : Math.min(levels[k], 2);

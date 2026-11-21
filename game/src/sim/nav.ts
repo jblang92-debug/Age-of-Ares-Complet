@@ -8,8 +8,8 @@ export const MAX_SLOPE = 0.62;
 
 export class NavGrid {
   readonly size: number;
-  /** blocked[0] : unités à pied ; blocked[1] : véhicules (obstacles élargis d'une case). */
-  readonly blocked: [Uint8Array, Uint8Array];
+  /** blocked[0] : unités à pied ; blocked[1] : véhicules (obstacles élargis d'une case) ; blocked[2] : navires (seulement l'eau, loin des côtes). */
+  readonly blocked: [Uint8Array, Uint8Array, Uint8Array];
   /** Change à chaque modification (bâtiment posé, gisement épuisé) : les chemins en cours sont recalculés. */
   version = 0;
   private fixed: Uint8Array;   // relief infranchissable + poches fermées
@@ -34,13 +34,19 @@ export class NavGrid {
       const steep = Math.max(Math.abs(h10 - h00), Math.abs(h01 - h00), Math.abs(h11 - h10), Math.abs(h11 - h01), Math.abs(h11 - h00) / 1.414, Math.abs(h10 - h01) / 1.414);
       if (steep > MAX_SLOPE || ix < 2 || iz < 2 || ix >= S - 2 || iz >= S - 2 || map.isVoid(x, z) || map.isVoid(x + 1, z) || map.isVoid(x, z + 1) || map.isVoid(x + 1, z + 1)) f[iz * S + ix] = 1;
     }
-    this.blocked = [new Uint8Array(S * S), new Uint8Array(S * S)];
+    // Eau navigable : la case et ses voisines à 1 m sont dans l'eau (le vide aux âges anciens).
+    const water = new Uint8Array(S * S).fill(1);
+    for (let iz = 1; iz < S - 1; iz++) for (let ix = 1; ix < S - 1; ix++) {
+      const x = ix - map.half + 0.5, z = iz - map.half + 0.5;
+      if (map.isVoid(x, z) && map.isVoid(x + 1.2, z) && map.isVoid(x - 1.2, z) && map.isVoid(x, z + 1.2) && map.isVoid(x, z - 1.2)) water[iz * S + ix] = 0;
+    }
+    this.blocked = [new Uint8Array(S * S), new Uint8Array(S * S), water];
     for (const o of objects.buildings) this.disc(o.x, o.z, o.block, 1);
     for (const o of objects.rocks) this.disc(o.x, o.z, o.block, 1);
     for (const o of objects.resources) this.disc(o.x, o.z, o.sx * 0.75, 1);
     this.refresh(0, 0, S - 1, S - 1);
     // Les poches isolées (entre deux obstacles, îlots de plateau) sont fermées : aucune unité au sol n'y entre.
-    for (const g of this.blocked) {
+    for (const g of [this.blocked[0], this.blocked[1]]) {
       const comp = new Int32Array(S * S).fill(-1), sizes: number[] = [], st: number[] = [];
       for (let k = 0; k < S * S; k++) {
         if (g[k] || comp[k] >= 0) continue;
@@ -113,7 +119,7 @@ export class NavGrid {
   }
   /** Champ de flux mis en cache : plusieurs unités allant au même endroit partagent le calcul.
    *  `reach` limite le calcul aux cases à moins de cette distance de marche (trajets courts : bien plus rapide). */
-  field(tx: number, tz: number, wide: 0 | 1, owner = -1, reach = INF): Float32Array {
+  field(tx: number, tz: number, wide: 0 | 1 | 2, owner = -1, reach = INF): Float32Array {
     if (this.gates <= 0) owner = -1;
     const key = this.cell(tx, tz) + ':' + wide + ':' + owner;
     const e = this.cache.get(key);
@@ -129,7 +135,7 @@ export class NavGrid {
     return ix < 0 || iz < 0 || ix >= S || iz >= S ? -1 : iz * S + ix;
   }
   /** Avec `owner`, les portes des autres camps comptent comme des murs. */
-  walkable(x: number, z: number, wide: 0 | 1, owner = -2): boolean {
+  walkable(x: number, z: number, wide: 0 | 1 | 2, owner = -2): boolean {
     const c = this.cell(x, z);
     return c >= 0 && !this.blocked[wide][c] && (owner === -2 || this.gate[c] < 0 || this.gate[c] === owner);
   }
@@ -137,7 +143,7 @@ export class NavGrid {
   cz(c: number): number { return Math.floor(c / this.size) + 0.5 - this.map.half; }
 
   /** Case libre la plus proche d'un point (recherche en spirale), ou -1. */
-  nearestFree(x: number, z: number, wide: 0 | 1, taken?: Set<number>, field?: Float32Array, maxR = 14): number {
+  nearestFree(x: number, z: number, wide: 0 | 1 | 2, taken?: Set<number>, field?: Float32Array, maxR = 14): number {
     const S = this.size, bx = Math.floor(x + this.map.half), bz = Math.floor(z + this.map.half);
     let best = -1, bestD = INF;
     for (let r = 0; r <= maxR; r++) {
@@ -156,7 +162,7 @@ export class NavGrid {
   }
 
   /** Champ de flux : distance de marche de chaque case jusqu'à la cible (Dijkstra), jusqu'à `reach` mètres. */
-  flowField(tx: number, tz: number, wide: 0 | 1, owner = -1, reach = INF): Float32Array {
+  flowField(tx: number, tz: number, wide: 0 | 1 | 2, owner = -1, reach = INF): Float32Array {
     const S = this.size, blk = this.blocked[wide], gate = this.gate, useGate = this.gates > 0;
     const dist = new Float32Array(S * S).fill(INF);
     const start = this.nearestFree(tx, tz, wide);
@@ -206,7 +212,7 @@ export class NavGrid {
   }
 
   /** Meilleure case voisine à rejoindre depuis la case c, selon le champ. */
-  next(field: Float32Array, c: number, wide: 0 | 1): number {
+  next(field: Float32Array, c: number, wide: 0 | 1 | 2): number {
     const S = this.size, blk = this.blocked[wide], ix = c % S, iz = (c - ix) / S;
     let best = c, bd = field[c];
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {

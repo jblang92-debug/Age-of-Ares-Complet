@@ -21,7 +21,7 @@ const check = (label: string, cond: boolean, detail = '') => { console.log((cond
   check('le drone traverse la carte en ligne droite', td > 0 && Math.hypot(d.x - e.x, d.z - (e.z - 12)) < 3, `drone ${(td / 10).toFixed(0)} s, blindé ${(tb / 10).toFixed(0)} s`);
 }
 { // Anti-aérien : la tourelle normale ignore le drone, la tourelle AA l'abat ; le blindé ne peut pas viser en l'air.
-  const { sim, s } = fresh(); sim.players[1].ere = 4; sim.players[1].minerai = 9999; sim.players[1].energie = 9999;
+  const { sim, s } = fresh(); sim.players[1].ere = 5; sim.players[1].minerai = 9999; sim.players[1].energie = 9999;
   const w = sim.spawn('ouvrier', 1, s.x + 20, s.z + 14);
   void w;
   const d = sim.spawn('drone', 0, s.x, s.z + 14), tank = sim.spawn('blinde', 1, s.x + 4, s.z + 14);
@@ -32,7 +32,7 @@ const check = (label: string, cond: boolean, detail = '') => { console.log((cond
   check('le fantassin tire sur le drone', d.hp < d.maxHp, `drone ${Math.round(d.hp)}/${d.maxHp}`);
 }
 { // Bouclier : absorbe les dégâts sous le dôme.
-  const { sim, s } = fresh(); const P = sim.players[0]; P.ere = 4; P.minerai = 9999; P.energie = 9999; P.solarite = 9999;
+  const { sim, s } = fresh(); const P = sim.players[0]; P.ere = 5; P.minerai = 9999; P.energie = 9999; P.solarite = 9999;
   const w = sim.spawn('ouvrier', 0, s.x, s.z + 9);
   let spot: any = null; for (let k = 0; k < 60 && !spot; k++) { const a = k * 0.7, x = s.x + Math.cos(a) * 12, z = s.z + Math.sin(a) * 12; if (sim.canPlace('bouclier', x, z)) spot = { x, z }; }
   sim.issue({ type: 'place', owner: 0, kind: 'bouclier', x: spot.x, z: spot.z, ids: [w.id] });
@@ -56,7 +56,7 @@ function match(seed: number, a: Level, b: Level) {
   while (sim.winner < 0 && sim.tick < 30 * 600) {
     for (const ai of ais) ai.step();
     sim.step(); sim.events.length = 0;
-    if (sim.tick % 50 === 0) { for (const o of [0, 1]) if (era[o] < 0 && sim.players[o].ere >= 4) era[o] = sim.tick; for (const u of sim.units) seen.add(u.kind); for (const x of sim.buildings) seen.add(x.kind); }
+    if (sim.tick % 50 === 0) { for (const o of [0, 1]) if (era[o] < 0 && sim.players[o].ere >= 5) era[o] = sim.tick; for (const u of sim.units) seen.add(u.kind); for (const x of sim.buildings) seen.add(x.kind); }
   }
   const e2 = (o: number) => era[o] < 0 ? 'jamais' : (era[o] / 600).toFixed(1) + ' min';
   console.log(`  graine ${seed} : ${a} contre ${b} -> ère 2 à ${e2(0)} / ${e2(1)} | fin à ${(sim.tick / 600).toFixed(1)} min, vainqueur ${sim.winner < 0 ? 'aucun' : sim.winner === 0 ? a : b} | vus : ${['blinde', 'drone', 'raffinerie', 'usine', 'hangar', 'tourelleAA', 'bouclier', 'labo', 'recycleur'].filter((k) => seen.has(k)).join(', ') || 'rien de l\'ère 2'} | ${Date.now() - t0} ms`);

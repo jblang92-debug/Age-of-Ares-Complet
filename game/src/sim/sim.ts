@@ -8,7 +8,8 @@ import { NavGrid, INF } from './nav';
 export type UnitKind = 'ouvrier' | 'fantassin' | 'eclaireur' | 'blinde' | 'artillerie' | 'drone' | 'navette' | 'ingenieur' | 'antiblindage' | 'intercepteur' | 'cuirasse'
   | 'tireur' | 'sam' | 'chasseurChars' | 'exo' | 'zenith' | 'avc' | 'challenger' | 'pancake' | 'grenadier' | 'huit' | 'executioner' | 'canonAA' | 'spitfire' | 'imperial' | 'garde' | 'commando' | 'vigile'
   | 'lame' | 'marteleur' | 'sabreur' | 'aether' | 'araignee' | 'araigneeCanon' | 'cogneur' | 'strikerLaser' | 'strikerMissiles' | 'strikerAssaut'
-  | 'milicien' | 'hachier' | 'champion' | 'archer' | 'arbaletrier' | 'cavalier' | 'chevalier' | 'belier' | 'catapulte';
+  | 'milicien' | 'hachier' | 'champion' | 'archer' | 'arbaletrier' | 'cavalier' | 'chevalier' | 'belier' | 'catapulte'
+  | 'mousquetaire' | 'canon' | 'galere' | 'galion';
 /** Doctrine choisie avant la partie (vide : aucune). */
 export type Doctrine = '' | 'industrielle' | 'aeronavale' | 'frappe';
 export type Formation = 'libre' | 'ligne' | 'colonne' | 'carre';
@@ -64,14 +65,14 @@ export interface Stats {
 export interface Snapshot { t: number; score: number[]; mil: number[]; eco: number[]; armee: number[]; ouvriers: number[]; recolte: number[]; batiments: number[]; pop: number[] }
 const newStats = (): Stats => ({ recolte: 0, produits: 0, perdus: 0, tues: 0, batimentsDetruits: 0, rec: { eau: 0, bois: 0, minerai: 0, energie: 0, solarite: 0 },
   depense: 0, degats: 0, batimentsConstruits: 0, batimentsPerdus: 0, captures: 0, recherches: 0, ereT: [0], popMax: 0, armeeMax: 0, ouvriersProduits: 0, promotions: 0, produitsPar: {}, perdusPar: {} });
-const VEHICLE = new Set(['eclaireur', 'blinde', 'artillerie', 'sam', 'chasseurChars', 'avc', 'huit', 'canonAA', 'cavalier', 'chevalier', 'belier', 'catapulte']);
+const VEHICLE = new Set(['eclaireur', 'blinde', 'artillerie', 'sam', 'chasseurChars', 'avc', 'huit', 'canonAA', 'cavalier', 'chevalier', 'belier', 'catapulte', 'canon', 'galere', 'galion']);
 /** Machines de combat (Atelier mécanique) : comptent aussi comme véhicules pour les bonus anti-blindage. */
 const MACHINE = new Set(['araignee', 'araigneeCanon', 'cogneur', 'strikerLaser', 'strikerMissiles', 'strikerAssaut']);
 for (const k of MACHINE) VEHICLE.add(k);
 /** Combattants au corps à corps : pas de traçante, un choc au contact. */
 export const MELEE = new Set(['lame', 'marteleur', 'sabreur', 'aether', 'cogneur', 'milicien', 'hachier', 'champion', 'cavalier', 'chevalier', 'belier']);
 const MOTOR = new Set(['eclaireur', 'blinde', 'artillerie', 'drone', 'intercepteur', 'sam', 'chasseurChars', 'avc', 'huit', 'canonAA', 'challenger', 'spitfire', 'zenith', 'pancake', 'executioner', 'imperial', 'araignee', 'araigneeCanon', 'cogneur', 'strikerLaser', 'strikerMissiles', 'strikerAssaut']);
-const INFANTRY = new Set(['milicien', 'hachier', 'champion', 'archer', 'arbaletrier', 'fantassin', 'antiblindage', 'ingenieur', 'tireur', 'grenadier', 'lame', 'marteleur', 'sabreur', 'aether', 'exo', 'garde', 'commando', 'vigile']);
+const INFANTRY = new Set(['mousquetaire', 'milicien', 'hachier', 'champion', 'archer', 'arbaletrier', 'fantassin', 'antiblindage', 'ingenieur', 'tireur', 'grenadier', 'lame', 'marteleur', 'sabreur', 'aether', 'exo', 'garde', 'commando', 'vigile']);
 /** Catégorie d'une unité pour les bonus de dégâts (air, machine, véhicule, infanterie). */
 export function unitClass(kind: string): 'air' | 'machine' | 'vehicule' | 'infanterie' | 'autre' {
   return UNITS[kind]?.vole ? 'air' : MACHINE.has(kind) ? 'machine' : VEHICLE.has(kind) ? 'vehicule' : INFANTRY.has(kind) || kind === 'ouvrier' ? 'infanterie' : 'autre';
@@ -82,15 +83,17 @@ const ERA2 = ['raffinerie', 'usine', 'hangar', 'atelier', 'tourelleAA', 'bouclie
 const AGE1 = ['habitat', 'stationEau', 'depotMinier', 'scierie', 'caserne', 'archerie', 'ecurie', 'tourelle', 'quai'];
 const AGE2 = ['caserne', 'archerie', 'ecurie', 'atelierSiege', 'tourelle'];
 /** Bâtiments exigés (2 types achevés) pour quitter l'âge `ere`. */
-const NEED: Record<number, string[]> = { 1: AGE1, 2: AGE2, 3: ERA1, 4: ERA2 };
+const AGE3 = ['caserne', 'archerie', 'ecurie', 'atelierSiege', 'tourelle', 'quai'];
+const NEED: Record<number, string[]> = { 1: AGE1, 2: AGE2, 3: AGE3, 4: ERA1, 5: ERA2 };
 /** Ascenseur orbital : temps à tenir une fois achevé (5 min). */
 export const WONDER_TICKS = 3000;
 
-const SHAPE: Record<UnitKind, { radius: number; wide: 0 | 1; rank: number }> = {
+const SHAPE: Record<UnitKind, { radius: number; wide: 0 | 1 | 2; rank: number }> = {
   milicien: { radius: 0.5, wide: 0, rank: 1 }, hachier: { radius: 0.5, wide: 0, rank: 1 }, champion: { radius: 0.55, wide: 0, rank: 1 },
   archer: { radius: 0.5, wide: 0, rank: 2 }, arbaletrier: { radius: 0.5, wide: 0, rank: 2 },
   cavalier: { radius: 0.9, wide: 0, rank: 1 }, chevalier: { radius: 0.95, wide: 0, rank: 1 },
   belier: { radius: 1.3, wide: 1, rank: 0 }, catapulte: { radius: 1.3, wide: 1, rank: 3 },
+  mousquetaire: { radius: 0.5, wide: 0, rank: 2 }, canon: { radius: 1.2, wide: 1, rank: 3 }, galere: { radius: 2.2, wide: 2, rank: 0 }, galion: { radius: 2.8, wide: 2, rank: 0 },
   blinde: { radius: 1.25, wide: 1, rank: 0 },
   artillerie: { radius: 1.25, wide: 1, rank: 0 },
   ingenieur: { radius: 0.5, wide: 0, rank: 3 },
@@ -135,7 +138,7 @@ export const DEPOT: Record<string, ResKind[]> = { centre: ['eau', 'bois', 'miner
 /** Bâtiments franchissables par leur camp : la porte est fermée aux autres. */
 const OPEN = new Set(['porte']);
 
-interface Group { owner: number; ver: number; deadline: number; tx: number; tz: number; fields: [Float32Array | null, Float32Array | null]; speed: number; extent: number; reach: number }
+interface Group { owner: number; ver: number; deadline: number; tx: number; tz: number; fields: (Float32Array | null)[]; speed: number; extent: number; reach: number }
 type Job =
   | { t: 'gather'; node: number; phase: 'go' | 'work' | 'return'; depot: number; tries: number }
   | { t: 'build'; b: number; phase: 'go' | 'work'; tries: number }
@@ -157,7 +160,7 @@ export interface Building {
 export interface Unit {
   id: number; owner: number; kind: UnitKind;
   x: number; z: number; px: number; pz: number; heading: number;
-  radius: number; wide: 0 | 1; speed: number;
+  radius: number; wide: 0 | 1 | 2; speed: number;
   moving: boolean; group: Group | null; slotX: number; slotZ: number; stuck: number; best: number; homeUntil: number;
   job: Job | null; working: boolean; carry: number; carryKind: ResKind | null; lastNode: number;
   hp: number; maxHp: number; cd: number; posture: Posture;
@@ -237,14 +240,14 @@ export class Sim {
   private queue: Order[] = [];
   private hash = new Map<number, Unit[]>();
 
-  /** Âge de départ de la partie (1 : Antiquité, 3 : âge moderne, l'ancienne ère 1). Le menu choisit ; par défaut : moderne. */
-  startAge = 3;
+  /** Âge de départ de la partie (1 : Antiquité, 4 : âge moderne, l'ancienne ère 1). Le menu choisit ; par défaut : moderne. */
+  startAge = 4;
   /** Fixe l'âge de départ de tous les camps (à appeler avant le premier tick). */
   setStartAge(a: number) {
     this.startAge = a;
     for (let o = 0; o < this.players.length; o++) { const P = this.players[o]; if (P.neutral) continue; P.ere = a; const t = this.stats[o].ereT; t.length = 0; for (let i = 0; i < a; i++) t.push(0); }
     // Départ aux âges anciens : l'éclaireur de départ devient un cavalier éclaireur.
-    if (a <= 2) for (const u of this.units.filter((x) => x.kind === 'eclaireur')) {
+    if (a <= 3) for (const u of this.units.filter((x) => x.kind === 'eclaireur')) {
       const i = this.units.indexOf(u); this.units.splice(i, 1); this.byId.delete(u.id);
       this.spawn('cavalier', u.owner, u.x, u.z);
     }
@@ -377,7 +380,7 @@ export class Sim {
 
   spawn(kind: UnitKind, owner: number, x: number, z: number): Unit {
     const sh = SHAPE[kind];
-    const c = UNITS[kind].vole ? -1 : this.nav.nearestFree(x, z, sh.wide);
+    const c = UNITS[kind].vole ? -1 : this.nav.nearestFree(x, z, sh.wide, undefined, undefined, sh.wide === 2 ? 40 : 14);
     if (c >= 0 && !this.nav.walkable(x, z, sh.wide)) { x = this.nav.cx(c); z = this.nav.cz(c); }
     const u: Unit = { id: this.nextId++, owner, kind, x, z, px: x, pz: z, heading: Math.atan2(-x, -z), radius: sh.radius, wide: sh.wide,
       speed: UNITS[kind].vitesse, moving: false, group: null, slotX: x, slotZ: z, stuck: 0, best: INF, homeUntil: 0,
@@ -487,20 +490,23 @@ export class Sim {
 
   private moveGroup(us: Unit[], x: number, z: number, formation: Formation) {
     if (!us.length) return;
+    // Navires et troupes à terre ne vont pas au même endroit : deux groupes.
+    const ships = us.filter((u) => u.wide === 2);
+    if (ships.length && ships.length < us.length) { this.moveGroup(us.filter((u) => u.wide !== 2), x, z, formation); us = ships; }
     const ground = us.filter((u) => !u.fly);
-    const anyWide = ground.some((u) => u.wide), wide: 0 | 1 = anyWide ? 1 : 0;
+    const anyWide = ground.some((u) => u.wide === 1), wide: 0 | 1 | 2 = ground.some((u) => u.wide === 2) ? 2 : anyWide ? 1 : 0;
     const tc = ground.length ? this.nav.nearestFree(x, z, wide) : -1;
     if (ground.length && tc < 0) return;
     const lim = this.map.half - 4;
     const tx = tc >= 0 ? this.nav.cx(tc) : Math.max(-lim, Math.min(lim, x)), tz = tc >= 0 ? this.nav.cz(tc) : Math.max(-lim, Math.min(lim, z));
-    const fields: [Float32Array | null, Float32Array | null] = [null, null];
+    const fields: (Float32Array | null)[] = [null, null, null];
     // Calcul limité à la zone utile (distance à vol d'oiseau x 1,5 + marge) ; s'il manque une unité qu'on peut rejoindre à pied, calcul complet.
     let reach = 0;
     for (const u of ground) reach = Math.max(reach, Math.hypot(u.x - tx, u.z - tz));
     reach = Math.ceil(reach * 1.5 + 30);
     const reg = this.nav.region, tcR = reg[this.nav.cell(tx, tz)] ?? -1;
-    for (const w of [0, 1] as const) {
-      if (w === 0 ? !ground.some((u) => !u.wide) : !anyWide) continue;
+    for (const w of [0, 1, 2] as const) {
+      if (!ground.some((u) => u.wide === w)) continue;
       let f = this.nav.field(tx, tz, w, us[0].owner, reach);
       if (reach < INF && ground.some((u) => { if (u.wide !== w) return false; const c = this.nav.cell(u.x, u.z); return c >= 0 && f[c] >= INF && reg[c] === tcR; })) { reach = INF; f = this.nav.field(tx, tz, w, us[0].owner); }
       fields[w] = f;
@@ -556,7 +562,7 @@ export class Sim {
     this.moveGroup([u], x + Math.cos(a) * (r + 1.5), z + Math.sin(a) * (r + 1.5), 'libre');
   }
 
-  private clear(x0: number, z0: number, x1: number, z1: number, wide: 0 | 1, owner: number): boolean {
+  private clear(x0: number, z0: number, x1: number, z1: number, wide: 0 | 1 | 2, owner: number): boolean {
     const d = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(d / 0.5);
     for (let i = 1; i < n; i++) if (!this.nav.walkable(x0 + (x1 - x0) * i / n, z0 + (z1 - z0) * i / n, wide, owner)) return false;
     return true;
@@ -791,7 +797,7 @@ export class Sim {
       const b = this.bById.get(o.b), r = RESEARCH[o.key];
       if (!b || b.kind !== 'labo' || !b.done || b.task || !r) return;
       const P = this.players[b.owner];
-      if ((r.ere ?? 4) > P.ere) return this.msg(b.owner, 'Disponible à l\'âge ' + GAME.eres[(r.ere ?? 4) - 1].nom);
+      if ((r.ere ?? 5) > P.ere) return this.msg(b.owner, 'Disponible à l\'âge ' + GAME.eres[(r.ere ?? 5) - 1].nom);
       if (P.research.has(o.key) || this.buildings.some((x) => x.owner === b.owner && x.task?.key === o.key)) return;
       const lack = this.canPay(b.owner, r.cout);
       if (lack) return this.msg(b.owner, manque(lack));
@@ -899,6 +905,7 @@ export class Sim {
         g.ver = nav.version; refreshed++;
         if (g.fields[0]) g.fields[0] = nav.field(g.tx, g.tz, 0, g.owner, g.reach);
         if (g.fields[1]) g.fields[1] = nav.field(g.tx, g.tz, 1, g.owner, g.reach);
+        if (g.fields[2]) g.fields[2] = nav.field(g.tx, g.tz, 2, g.owner, g.reach);
       }
       const dxs = u.slotX - u.x, dzs = u.slotZ - u.z, dSlot = Math.hypot(dxs, dzs);
       if (dSlot < 0.2) { this.halt(u); u.homeUntil = this.tick + 150; continue; }

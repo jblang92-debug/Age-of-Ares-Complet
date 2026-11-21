@@ -224,3 +224,13 @@ Dans ce dossier, depuis le Terminal :
 - Murs : palissade de pieux (Antiquité), muraille de pierre crénelée (Moyen Âge), portes à battants. Mini-carte verte et mer bleue jusqu'à l'âge galactique.
 - Cheval : les jambes sont repliées en cinématique inverse (les animations d'origine n'animaient que les sabots, d'où l'étirement).
 - Rythme : bâtiments ×1,5 PV, Centre plus solide (3 600 PV ×1,5) et ses flèches plus fortes, première attaque de l'IA vers 16–24 min depuis l'Antiquité, âges plus chers et plus longs. Parties IA contre IA : 25 à 40 min.
+
+## 21/11/2026 (suite) — Âge de la poudre, marine, icônes d'époque, salon en ligne
+
+- Six âges : Antiquité, Moyen Âge, **Âge de la poudre**, moderne, industriel, galactique (les anciennes ères sont décalées d'un cran ; `lookAge()` donne le style visuel, 5 styles pour 6 âges).
+- Âge de la poudre : Mousquetaire (Archerie, mousquet dessiné en code), Canon (Atelier de siège, Kenney Pirate Kit). Les unités et bâtiments anciens restent jusqu'à cet âge.
+- Marine (Port, âges anciens) : Galère de guerre (Moyen Âge, Kenney) et Galion à canons (poudre, Quaternius « Ships »). Les navires ne circulent que sur l'eau : troisième grille de navigation (`blocked[2]`, eau loin des côtes) et champs de flux dédiés. Test : `npx tsx tests/j22.ts`.
+- L'archer tient un vrai arc (dessiné en code à la place de l'arbalète KayKit).
+- Icônes rendues dans le jeu pour chaque âge ancien : bâtiments (`b_<type>_a1` Antiquité, `_a2` Moyen Âge et poudre), villageois et barque (`u_ouvrier_a`, `u_navette_a`), nouvelles unités. Script : scripts/icons_game.py (hors dépôt).
+- Salon en ligne : l'hôte choisit l'âge de départ (Antiquité, Moyen Âge, moderne). Menu solo : option Époque « Moyen Âge » ajoutée.
+- Rochers du décor : gris unis aux âges anciens (texture rousse retirée), roux à l'ère spatiale.

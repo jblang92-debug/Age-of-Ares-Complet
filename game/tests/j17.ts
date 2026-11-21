@@ -16,14 +16,14 @@ const FAC: UnitKind[] = ['tireur', 'sam', 'chasseurChars', 'exo', 'zenith', 'avc
   const fs = sim.players.filter((p) => !p.neutral).map((p) => p.faction);
   check('le joueur prend la faction choisie', sim.players[0].faction === 2, sim.factionName(0));
   check('les adversaires ont d\'autres factions', fs.slice(1).every((f) => f !== 2), fs.join(','));
-  check('chaque faction a au moins 3 unités propres, dont une dès l\'âge moderne', [0, 1, 2, 3].every((f) => Object.values(UNITS).filter((r) => r.faction === f).length >= 3 && Object.values(UNITS).some((r) => r.faction === f && r.ere === 3)));
+  check('chaque faction a au moins 3 unités propres, dont une dès l\'âge moderne', [0, 1, 2, 3].every((f) => Object.values(UNITS).filter((r) => r.faction === f).length >= 3 && Object.values(UNITS).some((r) => r.faction === f && r.ere === 4)));
   check('les 14 nouvelles unités existent', FAC.every((k) => !!UNITS[k]));
   check('les noms de faction sont définis', GAME.factionsDesc.length === 4);
 }
 { // Restriction : une unité d'une autre faction ne se produit pas.
   const sim = new Sim(g.terrain, g.objects); sim.sandbox = 0; sim.setFaction(0);
   const c = sim.buildings.find((b) => b.owner === 0 && b.kind === 'centre')!;
-  sim.players[0].ere = 5;
+  sim.players[0].ere = 6;
   const place = (kind: string, dx: number) => {
     for (let a = 0; a < 24; a++) for (const d of [13, 17, 21]) {
       const x = c.x + Math.cos(a / 24 * 6.28 + dx) * d, z = c.z + Math.sin(a / 24 * 6.28 + dx) * d;

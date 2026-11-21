@@ -11,7 +11,7 @@ import { RtsCamera } from './input/camera';
 import { Hud } from './ui/hud';
 import { FixedClock } from './sim/clock';
 import { Sim } from './sim/sim';
-import { GAME, UNITS } from './data/rules';
+import { GAME, UNITS, lookAge } from './data/rules';
 import { BuildingViews } from './render/buildings';
 import { Effects, type Weapon } from './render/effects';
 import { Ai, type Level } from './sim/ai';
@@ -32,7 +32,7 @@ import { Online, simHash } from './net/online';
 
 /** Arme de chaque unité qui tire à distance : effet, hauteur de la bouche à feu, écart entre deux canons. */
 const UNIT_WEAPON: Partial<Record<UnitKind, { w: Weapon; y?: number; twin?: number }>> = {
-  archer: { w: 'fleche', y: 1.3 }, arbaletrier: { w: 'fleche', y: 1.3 }, catapulte: { w: 'pierre', y: 2.2 },
+  archer: { w: 'fleche', y: 1.3 }, arbaletrier: { w: 'fleche', y: 1.3 }, catapulte: { w: 'pierre', y: 2.2 }, mousquetaire: { w: 'fusil', y: 1.35 }, canon: { w: 'canon', y: 0.9 }, galere: { w: 'fleche', y: 2.2 }, galion: { w: 'canon', y: 1.6, twin: 1.2 },
   tireur: { w: 'precision', y: 1.4 }, grenadier: { w: 'grenade', y: 1.4 }, garde: { w: 'pompe', y: 1.4 }, commando: { w: 'mitrailleuse', y: 1.3 }, vigile: { w: 'flak', y: 1.4 }, exo: { w: 'mitrailleuse', y: 2.2, twin: 0.5 }, sam: { w: 'salve', y: 2, twin: 0.5 },
   chasseurChars: { w: 'canon', y: 1.5 }, avc: { w: 'mitrailleuse', y: 1.9, twin: 0.2 }, huit: { w: 'canon', y: 1.9 }, canonAA: { w: 'flak', y: 2.2, twin: 0.4 },
   challenger: { w: 'plasmaBleu', y: 5.2, twin: 0.7 }, spitfire: { w: 'mitrailleuse', y: 5.4, twin: 0.6 }, zenith: { w: 'bombes', y: 5.6 }, pancake: { w: 'laser', y: 5.1, twin: 0 },
@@ -381,7 +381,7 @@ function frame(now: number) {
       const v = near(e.x0, e.z0), my = buildings?.turretShot(e.x0, e.z0, e.x1, e.z1, !!e.air) ?? null;
       // Âges anciens : la tour de guet et le Centre-ville tirent des flèches.
       const bOwner = e.bk ? sim.buildings.find((b) => Math.abs(b.x - e.x0) < 0.05 && Math.abs(b.z - e.z0) < 0.05)?.owner : undefined;
-      const oldTower = bOwner !== undefined && (sim.players[bOwner]?.ere ?? 3) <= 2;
+      const oldTower = bOwner !== undefined && (sim.players[bOwner]?.ere ?? 4) <= 3;
       const W = e.kind ? UNIT_WEAPON[e.kind] : e.bk ? (oldTower ? { w: 'fleche' as Weapon, y: e.bk === 'centre' ? 4 : undefined } : TOWER_WEAPON[e.bk]) : undefined, w = W?.w ?? (e.big ? 'canon' : 'fusil');
       const y1 = map.heightAt(e.x1, e.z1) + (e.air ? 4.6 : 1.0);
       // Le tir part du bout de l'arme (ou du canon) de l'unité qui tire, si on la voit.
@@ -451,7 +451,7 @@ function frame(now: number) {
       const won = e.winner === sim.players[me].team;
       if (!replay && !ai0 && !bench) {
         const P = sim.players[me], got: string[] = [];
-        if (P.ere >= 5) got.push('ere3');
+        if (P.ere >= 6) got.push('ere3');
         if ((sim.stats[me].tues ?? 0) >= 100) got.push('carnage');
         if (won) {
           if (scen) { if (challengeDone(scen.id)) got.push('defis'); }
@@ -501,7 +501,7 @@ function frame(now: number) {
   fx.barsEnd(); fx.update(dt, cam.camera.quaternion);
   if (fx.shake > 0) { cam.shake(fx.shake); fx.shake = 0; }
   if (ctrl && ctrl.selection.size) { let gone = false; for (const id of ctrl.selection) if (!sim.get(id)) { ctrl.selection.delete(id); gone = true; } if (gone) ctrl.select([...ctrl.selection]); }
-  world.setAge(sim.players[Math.max(0, me)]?.ere ?? 3, sim.tick < 3);
+  world.setAge(lookAge(sim.players[Math.max(0, me)]?.ere ?? 4), sim.tick < 3);
   world.update(dt, cam.target, cam.dist);
   world.renderer.render(world.scene, cam.camera);
   frames++; acc += dtMs;
@@ -568,7 +568,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   };
   const start = (lv: string, mode: string, o: Record<string, string>) => {
     level = lv;
-    opts = { doctrine: (o.doctrine || 'industrielle') as Doctrine, fog: o.brouillard !== 'non', blitz: o.duree === 'blitz', storms: o.evenements === 'tempetes', contested: o.centre === 'dispute', res: o.ressources || 'normales', faction: Math.max(0, Math.min(3, +(o.faction ?? 0) || 0)), age: o.epoque === 'moderne' ? 3 : 1 };
+    opts = { doctrine: (o.doctrine || 'industrielle') as Doctrine, fog: o.brouillard !== 'non', blitz: o.duree === 'blitz', storms: o.evenements === 'tempetes', contested: o.centre === 'dispute', res: o.ressources || 'normales', faction: Math.max(0, Math.min(3, +(o.faction ?? 0) || 0)), age: o.epoque === 'moderne' ? 4 : o.epoque === 'moyen' ? 2 : 1 };
     store.set('options', JSON.stringify(o));
     applyOpts(mode === 'spectateur');
     store.set('niveau', lv); store.set('mode', mode);
@@ -588,7 +588,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
     if (cfg.host && store.get('online-go') === cfg.nonce && (!hostSave || hostSave.nonce !== cfg.nonce)) { store.del('online'); store.del('online-go'); relaunch(); return; }
     if (!cfg.host || hostSave?.nonce !== cfg.nonce) hostSave = null;
     document.body.classList.add('online');
-    opts = { doctrine: 'industrielle', fog: cfg.fog, blitz: false, storms: false, contested: false, res: cfg.res, faction: cfg.sides[cfg.me]?.faction ?? 0, age: (cfg as { age?: number }).age ?? 1 };
+    opts = { doctrine: 'industrielle', fog: cfg.fog, blitz: false, storms: false, contested: false, res: cfg.res, faction: cfg.sides[cfg.me]?.faction ?? 0, age: cfg.age ?? 1 };
     sim.setStartAge(opts.age);
     cfg.sides.forEach((x, i) => { const P = sim.players[i]; if (P) { P.faction = x.faction; P.doctrine = 'industrielle'; } });
     sim.setTeams(cfg.sides.map((x) => x.team));
@@ -677,7 +677,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   // --- Banc d'essai des animations : chaque unité face à une cible, sans brouillard ni IA.
   if (store.get('scenario') === 'banc' && seed === SCEN_MAP.seed && size === SCEN_MAP.size && kind === SCEN_MAP.kind && players === 'duel') {
     store.del('scenario');
-    opts = { doctrine: 'industrielle', fog: false, blitz: false, storms: false, contested: false, res: 'normales', faction: 0, age: 3 };
+    opts = { doctrine: 'industrielle', fog: false, blitz: false, storms: false, contested: false, res: 'normales', faction: 0, age: 4 };
     applyOpts(false);
     ais = []; started = true; recording = false;
     hud.setLevel('#Banc d\'essai');
@@ -701,7 +701,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
     store.del('scenario');
     let o: Record<string, string> = {}; try { o = JSON.parse(store.get('options') || '{}'); } catch { /* défaut */ }
     scen = new Scenario(sim, sid);
-    opts = { doctrine: (o.doctrine || 'industrielle') as Doctrine, fog: sid === 'tuto' || sid === 'course', blitz: false, storms: false, contested: false, res: 'normales', faction: Math.max(0, Math.min(3, +(o.faction ?? 0) || 0)), age: 3 };
+    opts = { doctrine: (o.doctrine || 'industrielle') as Doctrine, fog: sid === 'tuto' || sid === 'course', blitz: false, storms: false, contested: false, res: 'normales', faction: Math.max(0, Math.min(3, +(o.faction ?? 0) || 0)), age: 4 };
     applyOpts(false);
     scen.setup();
     const ia = scen.info.ia; ais = ia ? [new Ai(sim, 1, ia)] : []; ai = ais[0] ?? null;
@@ -721,7 +721,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   if (store.get('revoir') === '1' && last && last.seed === seed && last.size === size && last.kind === kind && (last.players ?? 'duel') === players) {
     store.del('revoir');
     level = last.level;
-    opts = { doctrine: (last.doctrine || '') as Doctrine, fog: false, blitz: !!last.blitz, storms: !!last.storms, contested: !!last.contested, res: last.ressources || 'normales', faction: last.faction ?? 0, age: last.age ?? 3 };
+    opts = { doctrine: (last.doctrine || '') as Doctrine, fog: false, blitz: !!last.blitz, storms: !!last.storms, contested: !!last.contested, res: last.ressources || 'normales', faction: last.faction ?? 0, age: last.age ?? 4 };
     if (players === 'equipes') sim.setTeams([0, 1, 0, 1]);
     applyOpts(false);
     ais = sim.sides.slice(1).map((o) => new Ai(sim, o, last!.level as Level)); ai = ais[0];
@@ -743,7 +743,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   if (store.get('reprendre') === '1' && saved && saved.seed === seed && saved.size === size && saved.kind === kind && (saved.players ?? 'duel') === players) {
     store.del('reprendre');
     const lv = saved.level; level = lv;
-    opts = { doctrine: (saved.doctrine || '') as Doctrine, fog: !!saved.fog, blitz: !!saved.blitz, storms: !!saved.storms, contested: !!saved.contested, res: saved.ressources || 'normales', faction: saved.faction ?? 0, age: saved.age ?? 3 };
+    opts = { doctrine: (saved.doctrine || '') as Doctrine, fog: !!saved.fog, blitz: !!saved.blitz, storms: !!saved.storms, contested: !!saved.contested, res: saved.ressources || 'normales', faction: saved.faction ?? 0, age: saved.age ?? 4 };
     if (players === 'equipes') sim.setTeams([0, 1, 0, 1]);
     applyOpts(false);
     ais = sim.sides.slice(1).map((o) => new Ai(sim, o, lv as Level)); ai = ais[0]; hud.setLevel(lv);

@@ -55,7 +55,7 @@ export function showEnd(el: HTMLElement, sim: Sim, info: EndInfo) {
     'Technologie': () => table([
       { label: 'Âge atteint', get: (o) => P[o].ere, show: (o) => `${P[o].ere} · ${GAME.eres[P[o].ere - 1].nom}` },
       { label: 'Premier passage d\'âge', get: (o) => ere2(o) < 0 ? 1e9 : ere2(o), low: true, show: (o) => ere2(o) < 0 ? '—' : clock(ere2(o)) },
-      { label: 'Arrivée à l\'âge galactique', get: (o) => (S[o].ereT[4] ?? -1) < 0 ? 1e9 : S[o].ereT[4], low: true, show: (o) => (S[o].ereT[4] ?? -1) < 0 ? '—' : clock(S[o].ereT[4]) },
+      { label: 'Arrivée à l\'âge galactique', get: (o) => (S[o].ereT[5] ?? -1) < 0 ? 1e9 : S[o].ereT[5], low: true, show: (o) => (S[o].ereT[5] ?? -1) < 0 ? '—' : clock(S[o].ereT[5]) },
       { label: 'Recherches', get: (o) => S[o].recherches },
       { label: 'Doctrine', get: () => 0, show: (o) => DOCTRINES[P[o].doctrine] ?? '—' },
     ]) + `<div class="st-list">${SIDES.map((o) => `<p><b style="color:${COL[o]}">${info.names[o]}</b> : ${[...P[o].research].map((k) => RESEARCH[k]?.nom ?? k).join(', ') || 'aucune recherche'}</p>`).join('')}</div>`,

@@ -235,14 +235,18 @@ export class World {
   }
 
   /** Rochers du décor : gris aux âges anciens, ocre martien à l'âge galactique (teinte suivie avec l'époque). */
-  private rockMats: { m: THREE.MeshStandardMaterial; o: THREE.Color; n: THREE.Color }[] = [];
+  private rockMats: { m: THREE.MeshStandardMaterial; o: THREE.Color; n: THREE.Color; map: THREE.Texture | null }[] = [];
   private ageRock(g: THREE.Object3D): THREE.Object3D {
     g.traverse((x) => { const im = x as THREE.Mesh; if (!im.isMesh) return; const m = im.material as THREE.MeshStandardMaterial; if (this.rockMats.some((r) => r.m === m)) return;
-      const n = m.color.clone(), l = n.r * 0.3 + n.g * 0.55 + n.b * 0.15, o = new THREE.Color(l * 1.05, l * 1.05, l).multiplyScalar(1.15); this.rockMats.push({ m, o, n }); });
+      this.rockMats.push({ m, o: new THREE.Color(0x8e8b84), n: m.color.clone(), map: m.map }); });
     this.tintRocks(this.epoch < 0 ? 0 : this.epoch);
     return g;
   }
-  private tintRocks(k: number) { const t = Math.min(1, Math.max(0, (k - 0.3) / 0.6)); for (const r of this.rockMats) r.m.color.lerpColors(r.o, r.n, t); }
+  /** Aux âges anciens, la texture rousse est retirée (pierre grise unie) ; elle revient avec l'ère spatiale. */
+  private tintRocks(k: number) {
+    const t = Math.min(1, Math.max(0, (k - 0.3) / 0.6)), old = t < 0.5;
+    for (const r of this.rockMats) { const want = old ? null : r.map; if (r.m.map !== want) { r.m.map = want; r.m.needsUpdate = true; } r.m.color.copy(old ? r.o : r.n); }
+  }
 
   /** Repère visuel d'un toucher sur le terrain (servira aux ordres de déplacement). */
   ping(p: THREE.Vector3, color = 0x7dffb0) {

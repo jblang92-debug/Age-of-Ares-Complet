@@ -42,6 +42,7 @@ interface Look { /** Arme de corps à corps (modèle) tenue en main, longueur ra
   /** Cavalerie : cavalier KayKit assis sur le cheval (os du dos suivi), et son geste d'attaque. */ rider?: { model: string; kk: string[]; attack: string; seat: number };
   /** Bateau (âges anciens) : flotte sur l'eau au lieu de voler. */ boat?: boolean; /** Taille mesurée sur la pose du squelette (cheval). */ precise?: boolean;
   /** Engin de siège : coup de bélier ou détente de catapulte joués en code. */ siege?: 'ram' | 'throw';
+  /** Arme KayKit remplacée par une arme dessinée en code (arc, mousquet), posée à sa place dans la main. */ swap?: { of: string; make: 'arc' | 'mousquet' };
   /** Villageois (Quaternius) : geste selon la tâche (récolte, bûcheronnage, chantier), outil en main, démarche chargée. */ vill?: boolean }
 /** Accessoires des personnages KayKit : tous cachés sauf ceux que l'unité garde. */
 const KK_EXTRAS = ['1H_Sword_Offhand', 'Badge_Shield', 'Rectangle_Shield', 'Round_Shield', 'Spike_Shield', '1H_Sword', '2H_Sword', '1H_Axe_Offhand', 'Barbarian_Round_Shield', '1H_Axe', '2H_Axe', 'Mug',
@@ -102,10 +103,14 @@ const LOOKS: Record<UnitKind, Look> = {
   milicien:  KK('Knight', ['1H_Sword', 'Round_Shield'], '1H_Melee_Attack_Chop', { hide: ['Knight_Helmet'] }),
   hachier:   KK('Barbarian', ['2H_Axe'], '2H_Melee_Attack_Chop', { idle: '2H_Melee_Idle' }),
   champion:  KK('Knight', ['2H_Sword'], '2H_Melee_Attack_Slice', { idle: '2H_Melee_Idle', height: 2.2 }),
-  archer:    KK('Rogue_Hooded', ['1H_Crossbow'], '1H_Ranged_Shoot'),
+  archer:    KK('Rogue_Hooded', ['1H_Crossbow'], '1H_Ranged_Shoot', { swap: { of: '1H_Crossbow', make: 'arc' } }),
   arbaletrier: KK('Rogue', ['2H_Crossbow'], '2H_Ranged_Shoot', { height: 2.15 }),
   cavalier:  CAV('Rogue_Hooded', ['Knife'], '1H_Melee_Attack_Stab'),
   chevalier: CAV('Knight', ['1H_Sword', 'Badge_Shield'], '1H_Melee_Attack_Chop'),
+  mousquetaire: KK('Rogue', ['2H_Crossbow'], '2H_Ranged_Shoot', { height: 2.1, swap: { of: '2H_Crossbow', make: 'mousquet' } }),
+  canon:     { model: 'naval/canon.json', footprint: 2.3, custom: true, siege: 'throw', yaw: Math.PI },
+  galere:    { model: 'naval/galere.json', footprint: 6.5, custom: true, boat: true, yaw: Math.PI },
+  galion:    { model: 'naval/galion.json', footprint: 9, custom: true, boat: true, yaw: Math.PI },
   belier:    { model: 'siege/siege-ram.json', footprint: 3.3, custom: true, siege: 'ram', yaw: Math.PI },
   catapulte: { model: 'siege/siege-catapult.json', footprint: 3.1, custom: true, siege: 'throw', yaw: Math.PI },
   ouvrier:   { model: 'quat/Astronaut_FinnTheFrog.json', height: 2.1, idle: 'Idle', run: 'Run', work: 'Idle', runSpeed: 1.1 },
@@ -259,6 +264,36 @@ function pickaxe(): THREE.Group {
   return g;
 }
 
+const WOOD_M = new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.8 }), STRING_M = new THREE.MeshStandardMaterial({ color: 0xe8e0c8, roughness: 0.9 }), IRON_M = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.4, metalness: 0.8 });
+/** Remplace une arme KayKit (arbalète) par un arc ou un mousquet, aux mêmes dimensions et dans la même main. */
+function swapWeapon(body: THREE.Object3D, of: string, make: 'arc' | 'mousquet') {
+  const o = body.getObjectByName(of) as THREE.Mesh | undefined;
+  if (!o) return;
+  let geo: THREE.BufferGeometry | undefined; o.traverse((x) => { if (!geo && (x as THREE.Mesh).isMesh) geo = (x as THREE.Mesh).geometry; });
+  if (!geo) return;
+  geo.computeBoundingBox(); const bb = geo.boundingBox!, size = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+  const dims = [size.x, size.y, size.z], order = [0, 1, 2].sort((a, b) => dims[b] - dims[a]), L = dims[order[0]], W = dims[order[1]];
+  const g = new THREE.Group();
+  // Repère canonique : X = axe long de l'arme (tir), Y = sa largeur.
+  if (make === 'arc') {
+    const r = W * 0.5, arc = new THREE.Mesh(new THREE.TorusGeometry(r, L * 0.022, 5, 18, 2.3).rotateZ(-1.15), WOOD_M); arc.position.x = -r * 0.55; g.add(arc);
+    const str = new THREE.Mesh(new THREE.CylinderGeometry(L * 0.006, L * 0.006, 2 * r * Math.sin(1.15), 4), STRING_M); str.position.x = -r * 0.55 + r * Math.cos(1.15); g.add(str);
+  } else {
+    const len = L * 1.6, br = L * 0.03;
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(br, br * 1.15, len * 0.62, 7).rotateZ(Math.PI / 2), IRON_M); barrel.position.x = len * 0.19; g.add(barrel);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(len * 0.45, br * 3.2, br * 2.4), WOOD_M); stock.position.set(-len * 0.2, -br * 0.8, 0); g.add(stock);
+    const butt = new THREE.Mesh(new THREE.BoxGeometry(len * 0.12, br * 5, br * 2.6), WOOD_M); butt.position.set(-len * 0.4, -br * 1.8, 0); g.add(butt);
+  }
+  // Axes canoniques vers les axes de l'arme d'origine.
+  const ax = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+  const m = new THREE.Matrix4().makeBasis(ax[order[0]], ax[order[1]], ax[order[0]].clone().cross(ax[order[1]]));
+  g.quaternion.setFromRotationMatrix(m); g.position.copy(c);
+  g.traverse((x) => { if ((x as THREE.Mesh).isMesh) (x as THREE.Mesh).castShadow = true; });
+  // L'arme d'origine est cachée, le remplaçant prend sa place (même parent, même pose).
+  const wrap = new THREE.Group(); wrap.position.copy(o.position); wrap.quaternion.copy(o.quaternion); wrap.scale.copy(o.scale); wrap.add(g);
+  o.parent?.add(wrap); o.visible = false;
+}
+
 /** Outils du villageois, tenus dans la main droite : hache (bois), pioche (pierre, or), marteau (chantiers). */
 function villTools(): Record<'hache' | 'pioche' | 'marteau', THREE.Group> {
   const mk = (head: THREE.BufferGeometry[]) => {
@@ -324,7 +359,7 @@ function swingAngle(t: number): number {
 /** Vue stratégique : catégorie d'icône de chaque unité. */
 type IconCat = 'eco' | 'inf' | 'veh' | 'air';
 const ICON_CAT: Record<UnitKind, IconCat> = { ouvrier: 'eco', ingenieur: 'eco', fantassin: 'inf', antiblindage: 'inf', eclaireur: 'veh', blinde: 'veh', artillerie: 'veh', drone: 'air', intercepteur: 'air', navette: 'air', cuirasse: 'air',
-  milicien: 'inf', hachier: 'inf', champion: 'inf', archer: 'inf', arbaletrier: 'inf', cavalier: 'veh', chevalier: 'veh', belier: 'veh', catapulte: 'veh',
+  milicien: 'inf', hachier: 'inf', champion: 'inf', archer: 'inf', arbaletrier: 'inf', cavalier: 'veh', chevalier: 'veh', belier: 'veh', catapulte: 'veh', mousquetaire: 'inf', canon: 'veh', galere: 'veh', galion: 'veh',
   tireur: 'inf', grenadier: 'inf', exo: 'inf', garde: 'inf', commando: 'inf', vigile: 'inf', sam: 'veh', chasseurChars: 'veh', avc: 'veh', huit: 'veh', canonAA: 'veh', challenger: 'air', spitfire: 'air', zenith: 'air', pancake: 'air', executioner: 'air', imperial: 'air',
   lame: 'inf', marteleur: 'inf', sabreur: 'inf', aether: 'inf', araignee: 'veh', araigneeCanon: 'veh', cogneur: 'veh', strikerLaser: 'veh', strikerMissiles: 'veh', strikerAssaut: 'veh' };
 /** Pastille ronde aux couleurs du camp avec un symbole blanc : pioche, fantassin, char, avion. */
@@ -437,7 +472,7 @@ export class UnitViews {
   }
 
   /** Aspect d'une unité : celui de son époque pour les unités qui traversent les âges (ouvrier, navette). */
-  private lookFor(u: Unit): Look { return (this.sim.players[u.owner]?.ere ?? 3) <= 2 && OLD_LOOKS[u.kind] ? OLD_LOOKS[u.kind]! : LOOKS[u.kind]; }
+  private lookFor(u: Unit): Look { return (this.sim.players[u.owner]?.ere ?? 4) <= 3 && OLD_LOOKS[u.kind] ? OLD_LOOKS[u.kind]! : LOOKS[u.kind]; }
   private create(u: Unit): View {
     const look = this.lookFor(u);
     const v: View = { pos: new THREE.Vector3(u.x, this.sim.map.heightAt(u.x, u.z), u.z), heading: u.heading, look, acts: [], state: 0 };
@@ -476,6 +511,7 @@ export class UnitViews {
         body.traverse((o) => { if ((o as THREE.Mesh).isMesh && seen(o)) box.expandByObject(o); });
         if (!box.isEmpty()) { const inner = body.children[0]; inner.position.x -= (box.min.x + box.max.x) / 2; inner.position.z -= (box.min.z + box.max.z) / 2; }
       }
+      if (look.swap) swapWeapon(body, look.swap.of, look.swap.make);
       if (u.kind === 'ouvrier') {
         // Un ouvrier ne porte pas d'arme : à la place, une pioche qui apparaît quand il travaille.
         const gun = body.getObjectByName('Pistol');

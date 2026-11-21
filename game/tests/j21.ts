@@ -38,10 +38,10 @@ if (any.length < 5) { console.log('ECHEC : trop peu de types d\'unités ancienne
 if (!r1.ages.some((a) => a.length >= 1)) { console.log('ECHEC : aucune IA n\'a changé d\'âge'); ok = false; }
 // Règles : les unités antiques ne se produisent plus à l'âge moderne.
 const s = r1.sim, P = s.players[0];
-P.ere = 3; P.eau = P.bois = P.minerai = P.energie = 9999;
+P.ere = 4; P.eau = P.bois = P.minerai = P.energie = 9999;
 const cas = s.buildings.find((b) => b.owner === 0 && b.kind === 'caserne' && b.done);
 if (cas) { cas.queue.length = 0; s.issue({ type: 'train', b: cas.id, kind: 'milicien' }); s.step(); if (cas.queue.length) { console.log('ECHEC : milicien produit à l\'âge moderne'); ok = false; } }
-if (BUILDINGS.usine.ere !== 4 || UNITS.fantassin.ere !== 3 || UNITS.cuirasse.ere !== 5) { console.log('ECHEC : décalage des ères'); ok = false; }
+if (BUILDINGS.usine.ere !== 5 || UNITS.fantassin.ere !== 4 || UNITS.cuirasse.ere !== 6) { console.log('ECHEC : décalage des ères'); ok = false; }
 const r2 = match(4242, 'normal', 'difficile', 45);
 if (!r2.ages.some((a) => a.length >= 2) && !r1.ages.some((a) => a.length >= 2)) { console.log('ECHEC : aucune IA n\'atteint l\'âge moderne'); ok = false; }
 match(777, 'facile', 'normal', 25);
