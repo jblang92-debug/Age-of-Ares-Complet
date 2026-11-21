@@ -57,12 +57,15 @@ export const SIZES = { petite: 80, moyenne: 110, grande: 140 } as const;
 export type MapSize = keyof typeof SIZES;
 
 export function generateMap(seed: number, half = 80, kind: MapKind = 'terre', players = 2): GameMap {
-  let last: GameMap | null = null;
+  // Si aucune tentative n'est parfaite, on garde la moins mauvaise (ressources de départ d'abord).
+  let best: GameMap | null = null, bestScore = Infinity;
   for (let attempt = 0; attempt < 30; attempt++) {
     const s = attempt === 0 ? seed : (Math.imul(seed ^ (attempt * 0x9e3779b1), 2654435761) >>> 0) % 100000000;
     const terrain = generateTerrain(s, half, 40, kind, players), objects = generateObjects(terrain);
-    last = { seed, attempt, terrain, objects, report: validate(terrain, objects) };
-    if (last.report.ok) return last;
+    const m: GameMap = { seed, attempt, terrain, objects, report: validate(terrain, objects) };
+    if (m.report.ok) return m;
+    const score = objects.missing.reduce((a, k) => a + (/départ/.test(k) ? 10 : 1), 0) + m.report.reasons.length * 100;
+    if (score < bestScore) { best = m; bestScore = score; }
   }
-  return last!;
+  return best!;
 }

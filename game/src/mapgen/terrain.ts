@@ -92,7 +92,8 @@ export function generateTerrain(seed: number, half = 80, border = 40, kind: MapK
   const meander = (t: number) => h * (a1 * Math.sin((t / h) * 3) + a2 * Math.sin((t / h) * 7.1));
   const land = (x: number, z: number): boolean => {
     if (kind === 'terre' || kind === 'mont') return true;
-    if (VOID_BORDER.has(kind) && Math.max(Math.abs(x), Math.abs(z)) > h - 6 + wob(x, z, 4)) return false;
+    // Côtière : la bordure s'élargit en détroit navigable, qui relie les deux mers (guerre navale possible).
+    if (VOID_BORDER.has(kind) && Math.max(Math.abs(x), Math.abs(z)) > h - (kind === 'cotiere' && !four ? (h < 100 ? 7 : h * 0.11) : 6) + wob(x, z, kind === 'cotiere' && !four ? 2 : 4)) return false;
     const inIsland = islands.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + wob(x, z, c.r * 0.25));
     if (kind === 'cotiere' && four) {
       const bay = Math.min(...Q.map((q) => { const p = rotQ(h * 0.95, 0, q); return Math.hypot(x - p.x, z - p.z); }));

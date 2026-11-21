@@ -255,3 +255,9 @@ Dans ce dossier, depuis le Terminal :
 - Anglais : listes de coûts traduites automatiquement (« Caserne : 135 bois » → « Barracks: 135 wood »), menu Époque, descriptions des cartes, messages de marine. Les textes non traduits sont relevés dans `window.__miss` (outil de relecture).
 - Descriptions des cartes : « mer » et « bateaux » au lieu de « vide » et « navettes ».
 - j23 : l'IA transporte des troupes en galion et les flottes se battent.
+
+## 21/11/2026 (fin de soirée) — Détroit sur la Côtière, vrai coup de pioche, icônes recadrées
+
+- Côtière à 2 joueurs : la bordure s'élargit en détroit navigable qui relie les deux mers (avant, chaque camp avait sa mer fermée : pas de guerre navale). L'IA y envoie sa flotte. Génération : si aucune tentative n'est parfaite, la carte gardée est la moins mauvaise (ressources de départ en priorité) et non la dernière.
+- Villageois qui mine (pierre, or) : vrai coup de pioche à deux mains — on lève la pioche au-dessus de la tête, frappe vers le rocher, rebond (bras en cinématique inverse, buste qui accompagne). La hache reste pour le bois.
+- Icônes des âges anciens : cadrage uniforme. Le script photographie l'endroit vide puis avec l'objet ; la différence donne son contour à l'écran, et chaque icône est recadrée sur ce contour avec la même marge (rendu en double résolution). Script : scripts/icons_game2.py (hors dépôt).
