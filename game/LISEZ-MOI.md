@@ -212,3 +212,15 @@ Dans ce dossier, depuis le Terminal :
   - IA : traverse les âges anciens (archerie, écurie, siège), met de côté pour passer d'âge, première attaque retardée de 5 min quand la partie part de l'Antiquité.
   - Tests : j21 (IA contre IA depuis l'Antiquité : passages d'âge, unités anciennes, règles) ; tous les autres tests repassés et adaptés à la nouvelle numérotation.
   - À faire : murs et portes d'époque, gisements d'eau et de minerai d'époque, âge de la poudre, bateaux de guerre, mini-carte aux couleurs de l'époque, équilibrage fin.
+
+## 21/11/2026 — Ressources façon Age of Empires, villageois, murailles, cheval
+
+- Ressources : **Nourriture** (buissons de baies, fermes), **Bois** (forêts), **Pierre**, **Or** (filons), **Solarite** (âge industriel). L'énergie et la centrale solaire sont retirées : l'or se récolte. Clés internes inchangées (eau = nourriture, energie = or) pour garder les sauvegardes et le jeu en ligne.
+- Dépôts : Centre (tout), Moulin (nourriture), Camp de bûcherons / Scierie (bois), Camp de mineurs (pierre et or), Raffinerie (solarite). Ferme (dès l'Antiquité) : nourriture infinie, un ouvrier.
+- Coûts : jusqu'à l'âge moderne on bâtit en bois ; murs, portes et tours en pierre. Unités anciennes en nourriture, bois et or.
+- Un ouvrier chargé d'une autre ressource va d'abord la déposer avant d'aller au nouveau gisement.
+- Villageois : vrai paysan Quaternius (Modular Character Outfits + Universal Base Characters + Universal Animation Library 1 et 2) ; gestes selon la tâche (cueillette, bûcheronnage avec hache, pioche, marteau au chantier, démarche chargée).
+- Gisements d'époque : baies et rochers gris aux âges anciens, glace et minerai à l'ère spatiale ; arbres et filons d'or toujours.
+- Murs : palissade de pieux (Antiquité), muraille de pierre crénelée (Moyen Âge), portes à battants. Mini-carte verte et mer bleue jusqu'à l'âge galactique.
+- Cheval : les jambes sont repliées en cinématique inverse (les animations d'origine n'animaient que les sabots, d'où l'étirement).
+- Rythme : bâtiments ×1,5 PV, Centre plus solide (3 600 PV ×1,5) et ses flèches plus fortes, première attaque de l'IA vers 16–24 min depuis l'Antiquité, âges plus chers et plus longs. Parties IA contre IA : 25 à 40 min.

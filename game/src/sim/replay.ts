@@ -24,6 +24,6 @@ export function fingerprint(sim: Sim): string {
   const mix = (v: number) => { h = (Math.imul(h ^ Math.round(v * 100), 2654435761) + 0x9e3779b9) >>> 0; };
   for (const u of sim.units) { mix(u.id); mix(u.x); mix(u.z); mix(u.hp); }
   for (const b of sim.buildings) { mix(b.id); mix(b.hp); mix(b.progress); }
-  for (const p of sim.players) { mix(p.eau); mix(p.minerai); mix(p.energie); mix(p.solarite); mix(p.ere); }
+  for (const p of sim.players) { mix(p.eau); mix(p.bois); mix(p.minerai); mix(p.energie); mix(p.solarite); mix(p.ere); }
   return `${sim.tick}:${sim.units.length}:${sim.buildings.length}:${h.toString(16)}`;
 }

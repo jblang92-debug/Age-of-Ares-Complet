@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import type { RtsCamera } from './camera';
 import type { Sim, Formation, UnitKind } from '../sim/sim';
 import type { UnitViews } from '../render/units';
-import { BUILDINGS, TURRETS } from '../data/rules';
+import { BUILDINGS, TURRETS, manque } from '../data/rules';
 import { orient } from '../ui/orient';
 
 export class Controller {
@@ -129,7 +129,7 @@ export class Controller {
     if (!this.workers().length) return;
     if (BUILDINGS[kind].ere > this.sim.players[this.player].ere) { this.onMsg?.('Disponible à l\'âge ' + BUILDINGS[kind].ere); return; }
     const lack = this.sim.canPay(this.player, this.sim.buildCost(this.player, kind));
-    if (lack) { this.onMsg?.('Pas assez de ' + lack); return; }
+    if (lack) { this.onMsg?.(manque(lack)); return; }
     this.placing = { kind, start: null }; this.ghost = null; this.onChange?.();
   }
   cancelPlacing() { this.placing = null; this.ghost = null; this.onChange?.(); }

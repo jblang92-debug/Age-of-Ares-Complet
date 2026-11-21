@@ -7,7 +7,7 @@ import { Ai } from '../src/sim/ai';
 let ok = true;
 const check = (label: string, cond: boolean, detail = '') => { console.log((cond ? '  ok   ' : '  ECHEC') + ' ' + label + (detail ? ' — ' + detail : '')); if (!cond) ok = false; };
 const run = (sim: Sim, n: number, keep = false) => { const ev = []; for (let i = 0; i < n; i++) { sim.step(); if (keep) ev.push(...sim.events); sim.events.length = 0; } return ev; };
-const rich = (sim: Sim, o: number) => Object.assign(sim.players[o], { eau: 9999, minerai: 9999, energie: 9999, solarite: 9999 });
+const rich = (sim: Sim, o: number) => Object.assign(sim.players[o], { eau: 9999, bois: 9999, minerai: 9999, energie: 9999, solarite: 9999 });
 const spotNear = (sim: Sim, kind: string, x: number, z: number, d0 = 14) => { for (let a = 0; a < 300; a++) { const px = x + Math.cos(a * 0.7) * (d0 + a * 0.12), pz = z + Math.sin(a * 0.7) * (d0 + a * 0.12); if (sim.canPlace(kind, px, pz)) return { x: px, z: pz }; } return null; };
 const instant = (sim: Sim, o: number, kind: string, x: number, z: number) => {
   const p = spotNear(sim, kind, x, z)!; sim.issue({ type: 'place', owner: o, kind, x: p.x, z: p.z, ids: [] }); run(sim, 1);
@@ -22,8 +22,8 @@ const instant = (sim: Sim, o: number, kind: string, x: number, z: number) => {
   sim.issue({ type: 'age', b: c.id }); const ev1 = run(sim, 2, true);
   check('refus sans deux bâtiments de l\'ère 2', !c.task && ev1.some((e) => e.t === 'msg' && e.text.includes('2 types')));
   instant(sim, 0, 'usine', s.x, s.z); instant(sim, 0, 'labo', s.x, s.z);
-  sim.issue({ type: 'age', b: c.id }); run(sim, 1250);
-  check('ère 3 atteinte après 120 s', sim.players[0].ere === 5, `âge ${sim.players[0].ere}, arrivée ${sim.stats[0].ereT[4]}`);
+  sim.issue({ type: 'age', b: c.id }); run(sim, 1350);
+  check('ère 3 atteinte après 130 s', sim.players[0].ere === 5, `âge ${sim.players[0].ere}, arrivée ${sim.stats[0].ereT[4]}`);
 
   // Défense orbitale : vise le sol et l'air.
   const d = instant(sim, 0, 'defense', s.x, s.z);

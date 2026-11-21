@@ -25,10 +25,10 @@ function fullGame(seed: number) {
   let placed = 0, sent = -1;
   for (let t = 0; t < 9000 && sim.winner < 0; t++) {
     if (t % 10 === 0) {
-      const ice = near('glace'), ore = near('minerai');
+      const ice = near('glace'), ore = near('minerai'), wood = near('arbre');
       if (ice) sim.issue({ type: 'rally', b: centre.id, x: ice.x, z: ice.z, node: ice.id });
       if (W().length < 14 && centre.queue.length < 2 && !sim.canPay(0, UNITS.ouvrier.cout)) sim.issue({ type: 'train', b: centre.id, kind: 'ouvrier' });
-      for (const u of sim.idleWorkers(0)) { const n = u.id % 2 === 0 ? ore : ice; if (n) sim.issue({ type: 'gather', ids: [u.id], node: n.id }); }
+      for (const u of sim.idleWorkers(0)) { const n = u.id % 3 === 0 ? ore : u.id % 3 === 1 ? wood : ice; if (n) sim.issue({ type: 'gather', ids: [u.id], node: n.id }); }
       const has = (k: string) => sim.buildings.filter((b) => b.owner === 0 && b.kind === k);
       const build = (kind: string) => { const p = freeSpot(sim, kind, s.x, s.z, placed); if (p && !sim.canPay(0, BUILDINGS[kind].cout)) { sim.issue({ type: 'place', owner: 0, kind, x: p.x, z: p.z, ids: [W()[0].id] }); placed++; } };
       if (P.pop + 3 >= P.popCap && has('habitat').filter((b) => !b.done).length === 0 && P.popCap < 40) build('habitat');

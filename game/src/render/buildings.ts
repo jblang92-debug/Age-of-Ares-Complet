@@ -7,7 +7,8 @@ import type { Effects } from './effects';
 import { SHIELD, TURRETS } from '../data/rules';
 import { WallViews, wallPairs, makeGate, makeTurret, animateTurret, turretFired, TURRET_KINDS, type WallNode } from './defenses';
 
-type BLook = { model: string; footprint?: number; height?: number; roof?: { model: string; footprint: number } };
+type BLook = { model: string; footprint?: number; height?: number; roof?: { model: string; footprint: number };
+  /** Éléments posés autour du modèle principal (en mètres, avant rotation). */ extra?: { model: string; footprint?: number; height?: number; x: number; z: number; ry?: number }[] };
 const LOOKS: Record<string, BLook> = {
   centre: { model: 'kaykit/basemodule_A.json', footprint: 9, roof: { model: 'kaykit/roofmodule_solarpanels.json', footprint: 5.6 } },
   habitat: { model: 'kaykit/basemodule_B.json', footprint: 5 },
@@ -18,6 +19,7 @@ const LOOKS: Record<string, BLook> = {
   quai: { model: 'kaykit/landingpad_large.json', footprint: 8.4 },
   raffinerie: { model: 'kaykit/cargodepot_B.json', footprint: 5.6 },
   recycleur: { model: 'kaykit/windturbine_low.json', height: 4 },
+  scierie: { model: 'kaykit/containers_A.json', footprint: 5 },
   usine: { model: 'kaykit/basemodule_C.json', footprint: 8.4 },
   hangar: { model: 'kaykit/basemodule_D.json', footprint: 7.6 },
   labo: { model: 'kaykit/basemodule_E.json', footprint: 6.4 },
@@ -41,9 +43,10 @@ const BOREALE: Record<string, BLook> = {
 const LOOKS_A1: Record<string, BLook> = {
   centre: { model: 'antique/Barracks_FirstAge_Level3.json', footprint: 9.6 },
   habitat: { model: 'antique/Houses_FirstAge_1_Level1.json', footprint: 4.8 },
-  stationEau: { model: 'medieval/well_@.json', footprint: 3.6 },
-  depotMinier: { model: 'antique/Storage_FirstAge_Level1.json', footprint: 5.4 },
-  centrale: { model: 'antique/Windmill_FirstAge.json', height: 6.5 },
+  stationEau: { model: 'antique/Windmill_FirstAge.json', height: 6.5 },
+  depotMinier: { model: 'antique/Storage_FirstAge_Level1.json', footprint: 5.4, extra: [{ model: 'antique/Resource_Rock_2.json', footprint: 1.4, x: 2.6, z: 1.6 }, { model: 'antique/Resource_Gold_1.json', footprint: 1.3, x: -2.6, z: 1.8 }] },
+  scierie: { model: 'antique/Resource_PineTree_Group_Cut.json', footprint: 5.2, extra: [{ model: 'antique/Logs.json', footprint: 2.4, x: 0.4, z: -0.3, ry: 0.4 }] },
+  recycleur: { model: 'antique/Farm_Dirt_Level1.json', footprint: 5.6, extra: [{ model: 'antique/Farm_FirstAge_Level3_Wheat.json', footprint: 5.2, x: 0, z: 0 }] },
   caserne: { model: 'antique/Barracks_FirstAge_Level1.json', footprint: 7.2 },
   archerie: { model: 'antique/Archery_FirstAge_Level1.json', footprint: 6.8 },
   ecurie: { model: 'antique/Storage_FirstAge_Leve3.json', footprint: 7 },
@@ -54,9 +57,10 @@ const LOOKS_A1: Record<string, BLook> = {
 const LOOKS_A2: Record<string, BLook> = {
   centre: { model: 'medieval/castle_@.json', footprint: 9.6 },
   habitat: { model: 'medieval/home_A_@.json', footprint: 4.6 },
-  stationEau: { model: 'medieval/well_@.json', footprint: 3.6 },
+  stationEau: { model: 'medieval/windmill_@.json', footprint: 4.8 },
   depotMinier: { model: 'medieval/mine_@.json', footprint: 5.6 },
-  centrale: { model: 'medieval/windmill_@.json', footprint: 4.8 },
+  scierie: { model: 'antique/Storage_SecondAge_Level1.json', footprint: 5.4, extra: [{ model: 'antique/Logs.json', footprint: 2.4, x: 2.2, z: 2.4, ry: 0.3 }] },
+  recycleur: { model: 'antique/Farm_Dirt_Level1.json', footprint: 5.6, extra: [{ model: 'antique/Farm_SecondAge_Level3_Wheat.json', footprint: 5.2, x: 0, z: 0 }] },
   caserne: { model: 'medieval/barracks_@.json', footprint: 7.4 },
   archerie: { model: 'medieval/archeryrange_@.json', footprint: 6.8 },
   ecurie: { model: 'medieval/tavern_@.json', footprint: 6.6 },
@@ -118,7 +122,7 @@ function orbitalize(g: THREE.Object3D, kind: string, r: number, color: number) {
   g.userData.height = Math.max(base, h);
 }
 export const BUILDING_MODELS = [...new Set([...Object.values(LOOKS), ...Object.values(LOOKS2), ...Object.values(BOREALE), ...Object.values(LOOKS_A1), ...Object.values(LOOKS_A2), { model: SAT }, ...Array.from({ length: 10 }, (_, i) => ({ model: `e3/tour${i + 1}.json` }))]
-  .flatMap((l: BLook) => (l.model.includes('@') ? KK_ALL.map((c) => l.model.replace('@', c)) : [l.model]).concat(l.roof ? [l.roof.model] : [])))];
+  .flatMap((l: BLook) => (l.model.includes('@') ? KK_ALL.map((c) => l.model.replace('@', c)) : [l.model]).concat(l.roof ? [l.roof.model] : [], (l.extra ?? []).map((e) => e.model))))];
 const CAP = 600;
 const COLORS = TEAM_COLORS.map((c) => new THREE.Color(c));
 
@@ -168,10 +172,11 @@ export class BuildingViews {
     if (look) {
       g = spawn(look.model, { footprint: look.footprint, height: look.height });
       if (look.roof) { const r = spawn(look.roof.model, { footprint: look.roof.footprint }); r.position.y = g.userData.height; g.add(r); }
+      for (const e of look.extra ?? []) { const x = spawn(e.model, { footprint: e.footprint, height: e.height }); x.position.set(e.x, 0, e.z); x.rotation.y = e.ry ?? 0; g.add(x); }
     } else {
       // Défenses dessinées en code : porte à champ d'énergie, tourelles orientables.
       const color = b.kind === 'sentinelle' ? 0xff4a3a : TEAM_COLORS[colorIndex(this.sim, b.owner)];
-      g = b.kind === 'porte' ? makeGate(color) : TURRET_KINDS.has(b.kind) ? makeTurret(b.kind, color) : new THREE.Group();
+      g = b.kind === 'porte' ? makeGate(color, era) : TURRET_KINDS.has(b.kind) ? makeTurret(b.kind, color) : new THREE.Group();
     }
     if (anc && b.kind === 'tourelle') g.userData.muzzleY = (g.userData.height ?? 7) * 0.82;   // tour de guet : les archers tirent du sommet
     if (era === 5 && look) orbitalize(g, b.kind, b.r, TEAM_COLORS[colorIndex(this.sim, b.owner)]);
@@ -211,6 +216,7 @@ export class BuildingViews {
   /** Style d'un bâtiment selon l'âge de son camp : 1 (Antiquité), 2 (Moyen Âge), 3 (moderne), 4 (industriel), 5 (galactique). */
   private style(b: Building): number {
     const ere = this.sim.players[b.owner]?.ere ?? 3;
+    if (b.kind === 'porte') return Math.min(ere, 3);
     if (ere === 1 && LOOKS_A1[b.kind]) return 1;
     if (ere === 2 && (LOOKS_A2[b.kind] || LOOKS_A1[b.kind])) return LOOKS_A2[b.kind] ? 2 : 1;
     if (ere >= 5 && (LOOKS[b.kind] || BOREALE[b.kind])) return 5;
@@ -262,7 +268,7 @@ export class BuildingViews {
       if (view) view.visible = vis > 0;
       if (b.kind === 'mur' || b.kind === 'porte') {
         const dir = this.gateDir.get(b.id) ?? [1, 0];
-        this.nodes.set(b.id, { id: b.id, x: b.x, z: b.z, y, grow, vis, color: COLORS[colorIndex(this.sim, b.owner)], gate: b.kind === 'porte', dx: dir[0], dz: dir[1], ion: !!this.sim.players[b.owner].ion && b.done });
+        this.nodes.set(b.id, { id: b.id, x: b.x, z: b.z, y, grow, vis, color: COLORS[colorIndex(this.sim, b.owner)], gate: b.kind === 'porte', dx: dir[0], dz: dir[1], ion: !!this.sim.players[b.owner].ion && b.done, style: Math.min(3, this.sim.players[b.owner]?.ere ?? 3) });
       }
       if (vis === 0) { const d = this.domes.get(b.id); if (d) d.visible = false; if (b.kind !== 'mur' && !view) this.create(b).visible = false; continue; }
       if (b.kind === 'mur') { /* dessiné par WallViews */ }
@@ -276,17 +282,22 @@ export class BuildingViews {
         v.scale.y = grow * Math.min(1, 0.25 + (performance.now() - v.userData.born) / 900);
         if (v.userData.orbit) v.userData.orbit.rotation.y = performance.now() * 0.00035 + b.id;
         if (v.userData.yaw) animateTurret(this.sim, b, v as THREE.Group, dt, now);
-        if (v.userData.field) {
-          // Porte : alignée sur le mur ; le champ s'efface quand une unité du camp passe.
+        if (v.userData.gate) {
+          // Porte : alignée sur le mur ; le champ s'efface (ou les battants s'ouvrent) quand une unité du camp passe.
           const dir = this.gateDir.get(b.id) ?? [1, 0];
           v.rotation.y = Math.atan2(-dir[1], dir[0]);
           const open = this.sim.units.some((u) => !this.sim.foe(u.owner, b.owner) && Math.hypot(u.x - b.x, u.z - b.z) < 3.4);
-          const f = v.userData.field as THREE.Mesh, mat = f.material as THREE.MeshBasicMaterial;
-          const want = !b.done ? 0 : open ? 0.04 : 0.24 + 0.06 * Math.sin(now * 0.004 + b.id);
           if (b.done && open !== !!v.userData.open && vis === 2) this.onGate?.(b.x, b.z);
           v.userData.open = open;
-          mat.opacity += (want - mat.opacity) * Math.min(1, dt * 8);
-          f.visible = mat.opacity > 0.01;
+          const f = v.userData.field as THREE.Mesh | undefined;
+          if (f) {
+            const mat = f.material as THREE.MeshBasicMaterial;
+            const want = !b.done ? 0 : open ? 0.04 : 0.24 + 0.06 * Math.sin(now * 0.004 + b.id);
+            mat.opacity += (want - mat.opacity) * Math.min(1, dt * 8);
+            f.visible = mat.opacity > 0.01;
+          }
+          const leaves = v.userData.leaves as THREE.Group | undefined;
+          if (leaves) for (const pv of leaves.children) { const want = b.done && open ? pv.userData.sg * 1.45 : 0; pv.rotation.y += (want - pv.rotation.y) * Math.min(1, dt * 5); }
           const bars = v.userData.bars as THREE.Group | undefined;
           if (bars) { const k = !b.done || open ? 0.02 : 1; bars.scale.x += (k - bars.scale.x) * Math.min(1, dt * 7); bars.visible = bars.scale.x > 0.06; }
         }

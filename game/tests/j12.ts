@@ -25,7 +25,7 @@ const fresh = (kind: Parameters<typeof generateMap>[2] = 'terre', seed = 4242) =
 
 { // Capture : bâtiment ennemi sous 30 % de vie.
   const { g, sim } = fresh(), s = g.terrain.starts[0];
-  sim.players[1].minerai = 999; sim.players[1].eau = 999; sim.players[1].energie = 999;
+  sim.players[1].minerai = 999; sim.players[1].bois = 999; sim.players[1].eau = 999; sim.players[1].energie = 999;
   let spot: { x: number; z: number } | null = null;
   for (let a = 0; a < 80 && !spot; a++) { const x = s.x + Math.cos(a) * (20 + a * 0.3), z = s.z + Math.sin(a) * (20 + a * 0.3); if (sim.canPlace('caserne', x, z)) spot = { x, z }; }
   sim.issue({ type: 'place', owner: 1, kind: 'caserne', x: spot!.x, z: spot!.z, ids: [] }); run(sim, 2);
@@ -70,7 +70,7 @@ const fresh = (kind: Parameters<typeof generateMap>[2] = 'terre', seed = 4242) =
   const { sim } = fresh();
   const base = sim.buildCost(0, 'caserne');
   sim.players[0].doctrine = 'industrielle';
-  check('Industrielle : bâtiments -10 % de minerai', (sim.buildCost(0, 'caserne').minerai ?? 0) < (base.minerai ?? 0), `${base.minerai} → ${sim.buildCost(0, 'caserne').minerai}`);
+  check('Industrielle : bâtiments -10 % de bois', (sim.buildCost(0, 'caserne').bois ?? 0) < (base.bois ?? 0), `${base.bois} → ${sim.buildCost(0, 'caserne').bois}`);
   sim.players[0].research.add('reseau');
   check('Réseau énergétique : -20 % d\'énergie', !base.energie || (sim.buildCost(0, 'caserne').energie ?? 0) < base.energie);
 }
@@ -90,7 +90,7 @@ const fresh = (kind: Parameters<typeof generateMap>[2] = 'terre', seed = 4242) =
   const warn = ev.filter((e) => e.t === 'msg' && e.owner === 0 && e.text.startsWith('Tempête')).length;
   const on = ev.some((e) => e.t === 'storm' && e.on);
   check('tempête : alerte 15 s avant puis début vers 4 min', warn === 1 && on && sim.storm, `alerte ${warn}, en cours ${sim.storm}`);
-  sim.players[0].minerai = 999; sim.players[0].eau = 999; sim.players[0].energie = 999;
+  sim.players[0].minerai = 999; sim.players[0].bois = 999; sim.players[0].eau = 999; sim.players[0].energie = 999;
   let spot: { x: number; z: number } | null = null;
   for (let a = 0; a < 80 && !spot; a++) { const x = s.x + Math.cos(a) * (14 + a * 0.2), z = s.z + Math.sin(a) * (14 + a * 0.2); if (sim.canPlace('tourelle', x, z)) spot = { x, z }; }
   sim.issue({ type: 'place', owner: 0, kind: 'tourelle', x: spot!.x, z: spot!.z, ids: [] }); run(sim, 2);

@@ -13,11 +13,11 @@ const home = A.regionAt(c0.x, c0.z);
 const homeNodes = sim.nodes.filter((n) => A.regionAt(n.x, n.z) === home).sort((a, b) => Math.hypot(a.x - c0.x, a.z - c0.z) - Math.hypot(b.x - c0.x, b.z - c0.z));
 let kept = { glace: 0, minerai: 0 } as any;
 for (const n of homeNodes) { if ((n.kind === 'glace' || n.kind === 'minerai') && kept[n.kind] < 3) { kept[n.kind]++; n.amount = 400; } else n.amount = 0; }
-sim.players[0].eau += 800; sim.players[0].minerai += 800; sim.players[0].energie += 200;
+sim.players[0].eau += 800; sim.players[0].bois += 800; sim.players[0].minerai += 800; sim.players[0].energie += 200;
 while (sim.tick < 600 * 14) { ai.step(); sim.step(); sim.events.length = 0; }
 const away = sim.units.filter((u) => u.owner === 0 && u.kind === 'ouvrier' && A.regionAt(u.x, u.z) !== home);
 ok(!!A.colony, 'une île voisine a été choisie');
 ok(away.length >= 2, `ouvriers transportés sur la colonie : ${away.length}`);
-ok(sim.buildings.some((b) => b.owner === 0 && (b.kind === 'stationEau' || b.kind === 'depotMinier') && A.regionAt(b.x, b.z) !== home), 'un dépôt construit sur la colonie');
+ok(sim.buildings.some((b) => b.owner === 0 && (b.kind === 'stationEau' || b.kind === 'depotMinier' || b.kind === 'scierie') && A.regionAt(b.x, b.z) !== home), 'un dépôt construit sur la colonie');
 ok(away.some((u) => u.job?.t === 'gather' && u.carry > 0 || u.job?.t === 'gather'), 'des ouvriers récoltent sur la colonie');
 console.log(bad ? `${bad} ÉCHECS` : 'TOUT VERT'); process.exit(bad ? 1 : 0);

@@ -11,7 +11,7 @@ export interface Placed {
   block: number; owner: number; roof?: { model: string; footprint: number };
 }
 export interface Rock { model: string; x: number; z: number; rot: number; s: number; sy: number; block: number }
-export interface ResourceNode { kind: 'solarite' | 'glace' | 'minerai'; x: number; z: number; rot: number; sx: number; sy: number; tilt: number; /** Gisement posé sur une île (accessible par navette). */ island?: boolean }
+export interface ResourceNode { kind: 'solarite' | 'glace' | 'arbre' | 'minerai' | 'or'; x: number; z: number; rot: number; sx: number; sy: number; tilt: number; /** Gisement posé sur une île (accessible par navette). */ island?: boolean }
 export interface MapObjects { buildings: Placed[]; rocks: Rock[]; resources: ResourceNode[]; spawns: Vec2[][]; /** Gisements que le générateur n'a pas réussi à placer. */ missing: string[] }
 
 export function generateObjects(map: TerrainMap): MapObjects {
@@ -69,20 +69,29 @@ export function generateObjects(map: TerrainMap): MapObjects {
     if (!found.length) { missing.push(label); return; }
     const c = found[Math.floor(rng() * found.length)];
     if (kind === 'solarite') cluster(kind, c, 9, 3.2, [0.5, 0.55], [1.4, 2.2], 0.5);
-    else if (kind === 'glace') cluster(kind, c, 11, 3.6, [0.8, 0.9], [0.5, 0.8], 0.3);
-    else cluster(kind, c, 8, 3.4, [1.5, 1.3], [1.5, 1.3], 0);
+    else if (kind === 'glace') cluster(kind, c, 9, 3.4, [0.8, 0.9], [0.5, 0.8], 0.3);
+    else if (kind === 'arbre') cluster(kind, c, 22, 6.2, [1.5, 0.7], [0.85, 0.35], 0);
+    else if (kind === 'or') cluster(kind, c, 6, 2.8, [1.5, 1.0], [1.2, 0.8], 0);
+    else cluster(kind, c, 7, 3.2, [1.5, 1.3], [1.5, 1.3], 0);
   };
   const nearA = (x: number, z: number) => Math.hypot(x - s0.x, z - s0.z);
-  // Près de chaque base : 2 poches de glace et 2 affleurements de minerai.
-  for (let k = 0; k < 2; k++) {
-    place('glace', 'glace de départ', (x, z, d) => d > 17 && d < 34 && nearA(x, z) < 32);
-    place('minerai', 'minerai de départ', (x, z, d) => d > 17 && d < 34 && nearA(x, z) < 32);
-  }
+  // Près de chaque base, façon Age of Empires : 2 buissons de baies (nourriture), 2 bois, 1 carrière de pierre, 1 mine d'or.
+  const near = (x: number, z: number, d: number) => d > 17 && d < 36 && nearA(x, z) < 34;
+  place('glace', 'nourriture de départ', near);
+  place('arbre', 'bois de départ', near);
+  place('minerai', 'pierre de départ', near);
+  place('or', 'or de départ', near);
+  place('glace', 'nourriture de départ', near);
+  place('arbre', 'bois de départ', (x, z, d) => d > 20 && d < 44 && nearA(x, z) < 42);
   // Plus loin : de quoi s'étendre.
-  place('glace', 'glace éloignée', (x, z, d) => d > 45 && d < 80 && nearA(x, z) < 75);
-  place('minerai', 'minerai éloigné', (x, z, d) => d > 45 && d < 80 && nearA(x, z) < 75);
-  place('glace', 'glace lointaine', (x, z, d) => d > 70 && d < 130);
-  place('minerai', 'minerai lointain', (x, z, d) => d > 70 && d < 130);
+  place('arbre', 'bois éloigné', (x, z, d) => d > 40 && d < 75 && nearA(x, z) < 70);
+  place('glace', 'nourriture éloignée', (x, z, d) => d > 45 && d < 80 && nearA(x, z) < 75);
+  place('or', 'or éloigné', (x, z, d) => d > 45 && d < 80 && nearA(x, z) < 75);
+  place('minerai', 'pierre éloignée', (x, z, d) => d > 45 && d < 80 && nearA(x, z) < 75);
+  place('or', 'or lointain', (x, z, d) => d > 70 && d < 130);
+  place('minerai', 'pierre lointaine', (x, z, d) => d > 70 && d < 130);
+  place('arbre', 'bois lointain', (x, z, d) => d > 70 && d < 130);
+  place('glace', 'nourriture lointaine', (x, z, d) => d > 70 && d < 130);
   // Solarite : sur les plateaux (zones à disputer), jamais près des bases.
   const before = missing.length;
   place('solarite', 'solarite du plateau haut', (x, z, d, lv) => lv === 2 && d > 50);
@@ -92,7 +101,7 @@ export function generateObjects(map: TerrainMap): MapObjects {
   // Mont de solarite : le cratère central est très riche (comme la montagne d'or d'Age of Empires).
   if (map.kind === 'mont') {
     cluster('solarite', { x: 5, z: -3 }, 14, 3.4, [0.5, 0.55], [1.4, 2.2], 0.5);
-    cluster('minerai', { x: -2, z: -8 }, 10, 3.4, [1.5, 1.3], [1.5, 1.3], 0);
+    cluster('or', { x: -2, z: -8 }, 10, 3.4, [1.5, 1.0], [1.2, 0.8], 0);
   }
   // Îles neutres : gisements riches (solarite, minerai, glace). Pour une paire d'îles, on traite la première, la symétrie fait l'autre.
   for (let i = 0; i < map.islands.length; i++) {
@@ -100,6 +109,7 @@ export function generateObjects(map: TerrainMap): MapObjects {
     if (map.islands.slice(0, i).some((q) => mirrors(q).slice(1).some((m) => Math.abs(m.x - c.x) < 1 && Math.abs(m.z - c.z) < 1))) continue;
     const n0 = resources.length, big = c.r > 25, o = c.x === 0 && c.z === 0 ? 7 : Math.min(6, c.r * 0.4);
     cluster('solarite', { x: c.x + o, z: c.z - o * 0.5 }, big ? 12 : 10, 3.2, [0.5, 0.55], [1.4, 2.2], 0.5);
+    if (c.r > 9) cluster('or', { x: c.x - o * 0.8, z: c.z - o * 1.4 }, 6, 2.8, [1.5, 1.0], [1.2, 0.8], 0);
     if (c.r > 9) cluster('minerai', { x: c.x - o * 0.8, z: c.z + o * 0.7 }, 9, 3.2, [1.5, 1.3], [1.5, 1.3], 0);
     if (big) { cluster('glace', { x: c.x + o * 0.2, z: c.z + o * 1.6 }, 11, 3.6, [0.8, 0.9], [0.5, 0.8], 0.3); cluster('minerai', { x: c.x - o * 1.8, z: c.z - o * 1.2 }, 8, 3.4, [1.5, 1.3], [1.5, 1.3], 0); }
     for (let k = n0; k < resources.length; k++) resources[k].island = true;
@@ -108,8 +118,10 @@ export function generateObjects(map: TerrainMap): MapObjects {
   const extra = Math.round(((map.half / 80) ** 2 - 1) * 2);
   for (let k = 0; k < extra; k++) {
     const before2 = missing.length;
-    place('glace', 'glace supplémentaire', (x, z, d) => d > 60);
-    place('minerai', 'minerai supplémentaire', (x, z, d) => d > 60);
+    place('glace', 'nourriture supplémentaire', (x, z, d) => d > 60);
+    place('minerai', 'pierre supplémentaire', (x, z, d) => d > 60);
+    place('or', 'or supplémentaire', (x, z, d) => d > 60);
+    place('arbre', 'bois supplémentaire', (x, z, d) => d > 50);
     if (k % 2 === 0) place('solarite', 'solarite supplémentaire', (x, z, d, lv) => lv >= 1 && d > 70);
     missing.length = before2; // ces gisements sont un bonus : leur absence n'invalide pas la carte
   }

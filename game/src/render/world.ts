@@ -6,6 +6,7 @@ import { slopeAt } from '../mapgen/terrain';
 import { mulberry32 } from '../core/rng';
 import { buildTerrainMesh } from './terrainMesh';
 import { iceGeometry, iceMaterial } from './ice';
+import { berryBush, bushMaterial } from './flora';
 import { preload, spawn, instanced } from './assets';
 import { UNIT_MODELS, WATER_Y } from './units';
 import { BUILDING_MODELS } from './buildings';
@@ -22,6 +23,7 @@ const MODELS = [
   'kaykit/basemodule_C.json', 'kaykit/basemodule_D.json', 'kaykit/basemodule_E.json', 'kaykit/cargodepot_B.json', 'kaykit/windturbine_low.json', 'quat/GeodesicDome.json', 'quat/Navette.json',
   'quat/Rock_1.json', 'quat/Rock_2.json', 'quat/Rock_3.json', 'quat/Rock_4.json',
   'quat/Rock_Large_1.json', 'quat/Rock_Large_2.json', 'quat/Rock_Large_3.json',
+  ...['Resource_Tree1', 'Resource_Tree2', 'Resource_PineTree', 'Resource_Rock_1', 'Resource_Rock_2', 'Resource_Rock_3', 'Resource_Gold_1', 'Resource_Gold_2', 'Resource_Gold_3'].map((m) => `antique/${m}.json`),
 ];
 
 const SKY_OLD = new THREE.Color(0xa9c9e2), HAZE_NEW = new THREE.Color(0xd49a72);
@@ -158,30 +160,55 @@ export class World {
     this.decor.visible = this.epoch < 0 || this.epoch > 0.2;
   }
 
+  /** Gisements des âges anciens (baies, pierre) et de l'ère spatiale (glace, minerai) : on montre ceux de l'époque affichée. */
+  private resOld: THREE.Object3D[] = []; private resNew: THREE.Object3D[] = [];
   private buildResources() {
-    const mats = (kind: string, sink: number) => this.objects.resources.filter((r) => r.kind === kind).map((r) => {
-      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(r.tilt, r.rot, r.tilt * 0.6));
-      return new THREE.Matrix4().compose(new THREE.Vector3(r.x, this.map.heightAt(r.x, r.z) - sink, r.z), q, new THREE.Vector3(r.sx, r.sy, r.sx));
-    });
-    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
-    const register = (kind: string, meshes: THREE.InstancedMesh[]) => {
-      let i = 0;
-      this.objects.resources.forEach((r, index) => { if (r.kind === kind) { const slot = i++; this.resHide.set(index, () => { for (const im of meshes) { im.setMatrixAt(slot, zero); im.instanceMatrix.needsUpdate = true; } }); } });
+    const R = this.objects.resources, zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    const hides = new Map<number, (() => void)[]>();
+    const addHide = (i: number, f: () => void) => { let a = hides.get(i); if (!a) hides.set(i, a = []); a.push(f); };
+    const mat = (r: typeof R[number], w: number, h: number, sink: number, tilt = true) => {
+      const q = new THREE.Quaternion().setFromEuler(tilt ? new THREE.Euler(r.tilt, r.rot, r.tilt * 0.6) : new THREE.Euler(0, r.rot, 0));
+      return new THREE.Matrix4().compose(new THREE.Vector3(r.x, this.map.heightAt(r.x, r.z) - sink, r.z), q, new THREE.Vector3(w, h, w));
     };
-    const sol = mats('solarite', 0.3);
+    /** Instances d'un ou plusieurs modèles pour les gisements d'un type ; chaque bloc peut ensuite disparaître. */
+    const fromModels = (kind: string, models: string[], m: (r: typeof R[number]) => THREE.Matrix4, tint?: number): THREE.Object3D => {
+      const by = new Map<string, number[]>();
+      R.forEach((r, i) => { if (r.kind === kind) { const md = models[Math.floor(Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1 * models.length)]; let a = by.get(md); if (!a) by.set(md, a = []); a.push(i); } });
+      const g = new THREE.Group();
+      for (const [model, idx] of by) {
+        const grp = instanced(model, idx.map((i) => m(R[i])), tint), meshes: THREE.InstancedMesh[] = [];
+        grp.traverse((o) => { const im = o as THREE.InstancedMesh; if (im.isInstancedMesh) { im.frustumCulled = false; im.castShadow = true; im.receiveShadow = true; meshes.push(im); } });
+        idx.forEach((ri, slot) => addHide(ri, () => { for (const im of meshes) { im.setMatrixAt(slot, zero); im.instanceMatrix.needsUpdate = true; } }));
+        g.add(grp);
+      }
+      this.scene.add(g); return g;
+    };
+    const fromGeo = (kind: string, geo: THREE.BufferGeometry, material: THREE.Material, m: (r: typeof R[number]) => THREE.Matrix4): THREE.InstancedMesh => {
+      const idx = R.map((r, i) => r.kind === kind ? i : -1).filter((i) => i >= 0);
+      const im = new THREE.InstancedMesh(geo, material, Math.max(1, idx.length)); im.count = idx.length;
+      idx.forEach((ri, slot) => { im.setMatrixAt(slot, m(R[ri])); addHide(ri, () => { im.setMatrixAt(slot, zero); im.instanceMatrix.needsUpdate = true; }); });
+      im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; this.scene.add(im); return im;
+    };
+    const A = 'antique/';
+    // Solarite : cristaux lumineux (toutes époques).
     const solMat = this.crystals = new THREE.MeshStandardMaterial({ color: 0xff9a22, emissive: 0xff5200, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.1, flatShading: true });
-    const solMesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0).translate(0, 0.75, 0), solMat, sol.length);
-    sol.forEach((m, i) => solMesh.setMatrixAt(i, m)); solMesh.castShadow = true; solMesh.frustumCulled = false;
-    this.scene.add(solMesh); register('solarite', [solMesh]);
-    const ice = mats('glace', 0.25);
-    const iceMesh = new THREE.InstancedMesh(iceGeometry(), iceMaterial(this.renderer), ice.length);
-    ice.forEach((m, i) => iceMesh.setMatrixAt(i, m)); iceMesh.castShadow = true; iceMesh.receiveShadow = true; iceMesh.frustumCulled = false;
-    this.scene.add(iceMesh); register('glace', [iceMesh]);
-    const oreGroup = instanced('quat/Rock_2.json', mats('minerai', 0.2), 0x6d6470);
-    const oreMeshes: THREE.InstancedMesh[] = [];
-    oreGroup.traverse((o) => { const im = o as THREE.InstancedMesh; if (im.isInstancedMesh) { const mt = im.material as THREE.MeshStandardMaterial; mt.metalness = 0.75; mt.roughness = 0.42; im.frustumCulled = false; oreMeshes.push(im); } });
-    this.scene.add(oreGroup); register('minerai', oreMeshes);
+    fromGeo('solarite', new THREE.OctahedronGeometry(1, 0).translate(0, 0.75, 0), solMat, (r) => mat(r, r.sx, r.sy, 0.3));
+    // Nourriture : buissons de baies (âges anciens) / blocs de glace (ère spatiale).
+    this.resOld.push(fromGeo('glace', berryBush(), bushMaterial(), (r) => mat(r, r.sx * 1.25, r.sx * 1.15, 0.05, false)));
+    this.resNew.push(fromGeo('glace', iceGeometry(), iceMaterial(this.renderer), (r) => mat(r, r.sx, r.sy, 0.25)));
+    // Bois : forêts (toutes époques).
+    fromModels('arbre', [A + 'Resource_Tree1.json', A + 'Resource_Tree2.json', A + 'Resource_PineTree.json', A + 'Resource_PineTree.json'], (r) => mat(r, r.sx * 1.45, r.sx * 1.45 * r.sy, 0.1, false));
+    // Pierre : rochers gris (âges anciens) / minerai métallique (ère spatiale).
+    this.resOld.push(fromModels('minerai', [A + 'Resource_Rock_1.json', A + 'Resource_Rock_2.json', A + 'Resource_Rock_3.json'], (r) => mat(r, r.sx * 1.25, r.sx * 1.15, 0.15, false)));
+    const ore = fromModels('minerai', ['quat/Rock_2.json'], (r) => mat(r, r.sx, r.sy, 0.2), 0x6d6470);
+    ore.traverse((o) => { const im = o as THREE.InstancedMesh; if (im.isInstancedMesh) { const mt = im.material as THREE.MeshStandardMaterial; mt.metalness = 0.75; mt.roughness = 0.42; } });
+    this.resNew.push(ore);
+    // Or : filons dorés (toutes époques).
+    fromModels('or', [A + 'Resource_Gold_1.json', A + 'Resource_Gold_2.json', A + 'Resource_Gold_3.json'], (r) => mat(r, r.sx * 1.3, r.sx * 1.0 * r.sy, 0.12, false));
+    for (const [i, fs] of hides) this.resHide.set(i, () => fs.forEach((f) => f()));
+    this.showResEpoch(this.epoch < 0 ? 0 : this.epoch);
   }
+  private showResEpoch(k: number) { const old = k < 0.5; for (const o of this.resOld) o.visible = old; for (const o of this.resNew) o.visible = !old; }
 
   /** Fait disparaître un bloc de gisement épuisé. */
   hideResource(index: number) { this.resHide.get(index)?.(); }
@@ -192,7 +219,7 @@ export class World {
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r.rot, 0));
       (lists[r.model] ??= []).push(new THREE.Matrix4().compose(new THREE.Vector3(r.x, this.map.heightAt(r.x, r.z) - r.s * 0.08, r.z), q, new THREE.Vector3(r.s, r.s * r.sy, r.s)));
     }
-    for (const [model, ms] of Object.entries(lists)) this.scene.add(instanced(model, ms, model.startsWith('quat') ? 0xc98a62 : 0x8f7868, 40));
+    for (const [model, ms] of Object.entries(lists)) this.scene.add(this.ageRock(instanced(model, ms, model.startsWith('quat') ? 0xc98a62 : 0x8f7868, 40)));
     // Parois : des rochers alignés le long des falaises (hors rampes) pour qu'elles se lisent comme des murs.
     const rng = mulberry32(this.map.seed + 91), cliff: Record<string, THREE.Matrix4[]> = {};
     const mids = ['quat/Rock_1.json', 'quat/Rock_2.json', 'quat/Rock_3.json', 'quat/Rock_4.json'];
@@ -204,8 +231,18 @@ export class World {
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rot, 0));
       (cliff[mids[Math.floor(pick * 4)]] ??= []).push(new THREE.Matrix4().compose(new THREE.Vector3(px, this.map.heightAt(px, pz) - sc * 0.35, pz), q, new THREE.Vector3(sc, sc * sy, sc)));
     }
-    for (const [model, ms] of Object.entries(cliff)) this.scene.add(instanced(model, ms, 0x9c6146, 40));
+    for (const [model, ms] of Object.entries(cliff)) this.scene.add(this.ageRock(instanced(model, ms, 0x9c6146, 40)));
   }
+
+  /** Rochers du décor : gris aux âges anciens, ocre martien à l'âge galactique (teinte suivie avec l'époque). */
+  private rockMats: { m: THREE.MeshStandardMaterial; o: THREE.Color; n: THREE.Color }[] = [];
+  private ageRock(g: THREE.Object3D): THREE.Object3D {
+    g.traverse((x) => { const im = x as THREE.Mesh; if (!im.isMesh) return; const m = im.material as THREE.MeshStandardMaterial; if (this.rockMats.some((r) => r.m === m)) return;
+      const n = m.color.clone(), l = n.r * 0.3 + n.g * 0.55 + n.b * 0.15, o = new THREE.Color(l * 1.05, l * 1.05, l).multiplyScalar(1.15); this.rockMats.push({ m, o, n }); });
+    this.tintRocks(this.epoch < 0 ? 0 : this.epoch);
+    return g;
+  }
+  private tintRocks(k: number) { const t = Math.min(1, Math.max(0, (k - 0.3) / 0.6)); for (const r of this.rockMats) r.m.color.lerpColors(r.o, r.n, t); }
 
   /** Repère visuel d'un toucher sur le terrain (servira aux ordres de déplacement). */
   ping(p: THREE.Vector3, color = 0x7dffb0) {
@@ -242,6 +279,7 @@ export class World {
     if (this.hemi) { this.hemi.color.copy(HEMI_OLD).lerp(HEMI_NEW, k); this.hemi.groundColor.copy(GROUND_OLD).lerp(GROUND_NEW, k); }
     this.sun.color.copy(SUN_OLD).lerp(SUN_NEW, k);
     this.decor.visible = k > 0.2;
+    this.showResEpoch(k); this.tintRocks(k);
   }
 
   /** Tempête de poussière : 0 = ciel clair, 1 = pleine tempête (transition douce). */

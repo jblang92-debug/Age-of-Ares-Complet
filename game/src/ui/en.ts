@@ -21,6 +21,13 @@ export const EN_NAMES: Record<string, string> = {
   'Arès': 'Ares', 'Boréale': 'Boreal', 'Australe': 'Austral', 'Solaris': 'Solaris',
 };
 export const EN: Record<string, string> = {
+  // --- Ressources façon Age of Empires
+  'Nourriture': 'Food', 'Bois': 'Wood', 'Pierre': 'Stone', 'Or': 'Gold', 'nourriture': 'food', 'bois': 'wood', 'pierre': 'stone', 'or': 'gold',
+  'Pas assez de nourriture': 'Not enough food', 'Pas assez de bois': 'Not enough wood', 'Pas assez de pierre': 'Not enough stone', 'Pas assez d\'or': 'Not enough gold',
+  '5 nourriture': '# food', '5 bois': '# wood', '5 pierre': '# stone', '5 or': '# gold',
+  'Scierie': 'Sawmill', 'Camp de bûcherons': 'Lumber camp', 'Camp de mineurs': 'Mining camp', 'Ferme': 'Farm', 'Ferme hydroponique': 'Hydroponic farm', 'Silo hydroponique': 'Hydroponic silo', 'Silo': 'Silo', 'Moulin': 'Mill',
+  'Dépôt de nourriture': 'Food depot', 'Dépôt de bois': 'Wood depot', 'Dépôt de pierre et d\'or': 'Stone and gold depot', 'Nourriture infinie, lente (un ouvrier)': 'Endless food, slow (one worker)',
+  'Pas assez d\'or pour la barrière ionique': 'Not enough gold for the ion barrier', 'Barrière ionique coupée : plus d\'or': 'Ion barrier off: out of gold',
   // --- Menu
   'AGE OF ARES': 'AGE OF ARES', 'Age of Ares': 'Age of Ares', 'CHARGEMENT…': 'LOADING…', 'Conquiers la planète rouge': 'Conquer the red planet', 'Récolte · Bâtis · Conquiers la planète rouge': 'Harvest · Build · Conquer the red planet',
   'Récolte': 'Harvest', 'Bâtis': 'Build', 'Partie': 'Game', 'Carte': 'Map', 'Règles': 'Rules', 'Mode': 'Mode', 'Je joue': 'I play', 'avec ta faction': 'with your faction', 'Spectateur': 'Spectator', 'IA contre IA': 'AI vs AI', 'spectateur': 'spectator',

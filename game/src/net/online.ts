@@ -15,7 +15,7 @@ export function simHash(sim: Sim): number {
   let h = sim.tick | 0;
   for (const u of sim.units) h = (Math.imul(h, 31) + Math.round(u.x * 64) * 7 + Math.round(u.z * 64) * 13 + Math.round(u.hp)) | 0;
   for (const b of sim.buildings) h = (Math.imul(h, 17) + Math.round(b.hp) + b.queue.length) | 0;
-  for (const p of sim.players) h = (Math.imul(h, 7) + Math.round(p.minerai + p.eau * 3 + p.energie * 5)) | 0;
+  for (const p of sim.players) h = (Math.imul(h, 7) + Math.round(p.minerai + p.eau * 3 + p.energie * 5 + p.bois * 11)) | 0;
   return h;
 }
 

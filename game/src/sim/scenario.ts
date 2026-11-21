@@ -30,16 +30,16 @@ export class Scenario {
 
   setup() {
     const sim = this.sim, me = this.me, foe = sim.players[1];
-    if (this.id === 'tuto') { me.eau += 300; me.minerai += 300; me.energie += 100; }
+    if (this.id === 'tuto') { me.eau += 300; me.bois += 300; me.minerai += 300; me.energie += 100; }
     if (this.id === 'defense') {
-      me.ere = 4; me.eau = 800; me.minerai = 900; me.energie = 500; me.solarite = 100;
+      me.ere = 4; me.eau = 800; me.bois = 600; me.minerai = 900; me.energie = 500; me.solarite = 100;
       const c = this.centre(0)!, f = this.along(0.18);
       for (let i = 0; i < 3; i++) sim.placeNear('habitat', 0, c.x - 8 + i * 5, c.z - 10);
       sim.placeNear('tourelle', 0, f.x - 5, f.z); sim.placeNear('tourelle', 0, f.x + 5, f.z); sim.placeNear('tourelle', 0, f.x, f.z - 3); sim.placeNear('caserne', 0, c.x - 9, c.z);
       this.squad([['fantassin', 6], ['antiblindage', 3], ['blinde', 2]], 0, this.along(0.12));
     }
     if (this.id === 'raid') {
-      me.ere = 4; me.eau = 0; me.minerai = 0; me.energie = 0; me.solarite = 0;
+      me.ere = 4; me.eau = 0; me.bois = 0; me.minerai = 0; me.energie = 0; me.solarite = 0;
       { const c0 = this.centre(0)!; for (let i = 0; i < 4; i++) sim.placeNear('habitat', 0, c0.x - 10 + i * 5, c0.z - 10); }
       this.squad([['blinde', 3], ['fantassin', 6], ['antiblindage', 3], ['strikerLaser', 2]], 0, this.along(0.5));
       foe.ere = 4;
@@ -48,7 +48,7 @@ export class Scenario {
       sim.placeNear('caserne', 1, c.x + 8, c.z); sim.placeNear('usine', 1, c.x - 9, c.z);
       this.squad([['fantassin', 6], ['antiblindage', 3], ['blinde', 2]], 1, this.along(0.88));
     }
-    if (this.id === 'course') { me.eau += 200; me.minerai += 200; }
+    if (this.id === 'course') { me.eau += 200; me.bois += 200; me.minerai += 200; }
   }
 
   private waves = 0;

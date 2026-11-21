@@ -7,7 +7,7 @@ export interface MapChoice { seed: number; size: string; kind: string; players: 
 import * as THREE from 'three';
 import type { TerrainMap } from '../mapgen/terrain';
 import type { RtsCamera } from '../input/camera';
-import { GAME } from '../data/rules';
+import { GAME, RES_NOM } from '../data/rules';
 import { BASE } from '../render/assets';
 import type { Controller } from '../input/controller';
 import { orient } from './orient';
@@ -29,7 +29,7 @@ const ICONS = new Set(['b_centre', 'b_depotMinier', 'b_centrale', 'b_habitat', '
 /** Recherches sans illustration propre : on réutilise une icône proche. */
 const ALIAS: Record<string, string> = { t_barriere: 'b_bouclier' };
 const icon = (n: string) => (n = ALIAS[n] ?? n, ICONS.has(n))  ? `<img src="${UI('icons/' + n + '.png')}" alt=""/>` : '';
-const RES = ['eau', 'minerai', 'energie', 'solarite'] as const;
+const RES = ['eau', 'bois', 'minerai', 'energie', 'solarite'] as const;
 const pills = (c: object) => `<span class="cost">${RES.filter((k) => (c as Record<string, number>)[k]).map((k) => `<b class="p-${k}">${(c as Record<string, number>)[k]}</b>`).join('')}</span>`;
 
 const BN: Record<string, string> = { infanterie: 'infanterie', vehicule: 'véhicules', machine: 'machines', batiment: 'bâtiments', air: 'appareils volants', sol: 'cibles au sol', ouvrier: 'ouvriers' };
@@ -80,7 +80,7 @@ export class Hud {
       f.load().then((ff) => (document.fonts as any).add(ff)).catch(() => {});
     } catch { /* police de secours */ }
     const d = GAME.depart;
-    $('r-eau').textContent = String(d.eau);
+    $('r-eau').textContent = String(d.eau); $('r-bois').textContent = String(d.bois);
     $('r-minerai').textContent = String(d.minerai);
     $('r-energie').textContent = String(d.energie);
     $('r-solarite').textContent = String(d.solarite);
@@ -142,14 +142,14 @@ export class Hud {
     { const st = this.map.starts[ctrl.player] ?? this.map.starts[0]; this.cams[0] = { x: st.x, z: st.z + 6, d: 52 }; }
     this.sim = sim; this.ctrl = ctrl;
     const panel = $('panel');
-    const cost = (c: object) => Object.entries(c as Record<string, number>).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(', ');
+    const cost = (c: object) => Object.entries(c as Record<string, number>).filter(([, v]) => v).map(([k, v]) => `${v} ${(RES_NOM[k] ?? k).toLowerCase()}`).join(', ');
     const CATS: Record<string, { nom: string; items: string[] }> = {
-      eco: { nom: 'Économie', items: ['habitat', 'stationEau', 'depotMinier', 'centrale', 'quai', 'raffinerie', 'recycleur'] },
+      eco: { nom: 'Économie', items: ['habitat', 'recycleur', 'stationEau', 'scierie', 'depotMinier', 'quai', 'raffinerie'] },
       armee: { nom: 'Armée', items: ['caserne', 'archerie', 'ecurie', 'atelierSiege', 'arene', 'usine', 'atelier', 'hangar', 'labo', 'ascenseur'] },
       defense: { nom: 'Défense', items: ['tourelle', 'mur', 'porte', 'tourelleAA', 'bouclier', 'defense'] },
     };
     let cat = 'eco';
-    const SHORT: Record<string, string> = { habitat: 'Habitat', stationEau: 'Station d\'eau', depotMinier: 'Dépôt minier', centrale: 'Centrale', quai: 'Quai orbital', caserne: 'Caserne', tourelle: 'Tourelle', mur: 'Mur', porte: 'Porte', raffinerie: 'Raffinerie', recycleur: 'Recycleur', usine: 'Usine', hangar: 'Hangar', arene: 'Salle d\'armes', atelier: 'Atelier méca', archerie: 'Archerie', ecurie: 'Écurie', atelierSiege: 'Atelier de siège', labo: 'Laboratoire', tourelleAA: 'Anti-aérien', bouclier: 'Bouclier', defense: 'Défense orbitale', ascenseur: 'Ascenseur orbital' };
+    const SHORT: Record<string, string> = { habitat: 'Habitat', stationEau: 'Silo', scierie: 'Scierie', depotMinier: 'Dépôt minier', centrale: 'Centrale', quai: 'Quai orbital', caserne: 'Caserne', tourelle: 'Tourelle', mur: 'Mur', porte: 'Porte', raffinerie: 'Raffinerie', recycleur: 'Ferme', usine: 'Usine', hangar: 'Hangar', arene: 'Salle d\'armes', atelier: 'Atelier méca', archerie: 'Archerie', ecurie: 'Écurie', atelierSiege: 'Atelier de siège', labo: 'Laboratoire', tourelleAA: 'Anti-aérien', bouclier: 'Bouclier', defense: 'Défense orbitale', ascenseur: 'Ascenseur orbital' };
     const short = (c: object) => cost(c).replace(' minerai', ' min.').replace('energie', 'én.').replace('solarite', 'sol.');
     let sig = '', killArm = false, killTimer = 0, folded = false, batch = 1;
     // Le panneau occupe le coin bas gauche sans passer sous les boutons rapides et la mini-carte ;
@@ -308,7 +308,7 @@ export class Hud {
     const sim = this.sim, ctrl = this.ctrl;
     if (!sim || !ctrl) return;
     const P = sim.players[ctrl.player];
-    $('r-eau').textContent = String(Math.floor(P.eau)); $('r-minerai').textContent = String(Math.floor(P.minerai));
+    $('r-eau').textContent = String(Math.floor(P.eau)); $('r-bois').textContent = String(Math.floor(P.bois)); $('r-minerai').textContent = String(Math.floor(P.minerai));
     $('r-energie').textContent = String(Math.floor(P.energie)); $('r-solarite').textContent = String(Math.floor(P.solarite));
     $('r-pop').textContent = `${P.pop}/${P.popCap}`;
     if (this.qLabel) { const want = document.body.classList.contains('compact') ? 'Q : ' + this.qLabel.replace(' (auto)', '') : 'Qualité : ' + this.qLabel; if ($('btn-quality').textContent !== want) $('btn-quality').textContent = want; }
@@ -389,7 +389,7 @@ export class Hud {
     const draw = (map: TerrainMap, bg: HTMLCanvasElement, res: { kind: string; x: number; z: number }[]) => {
       g.drawImage(bg, 0, 0, cv.width, cv.height);
       const P = (x: number, z: number) => [(x / map.half * 0.5 + 0.5) * cv.width, (z / map.half * 0.5 + 0.5) * cv.height];
-      for (const r of res) { const [x, y] = P(r.x, r.z); g.fillStyle = r.kind === 'solarite' ? '#ffb02e' : r.kind === 'glace' ? '#cfefff' : '#5d5866'; g.fillRect(x - 1, y - 1, 2, 2); }
+      for (const r of res) { const [x, y] = P(r.x, r.z); g.fillStyle = r.kind === 'solarite' ? '#ffb02e' : r.kind === 'glace' ? '#e0505a' : r.kind === 'arbre' ? '#2f6b2a' : r.kind === 'or' ? '#ffd84a' : '#a8a8a8'; g.fillRect(x - 1, y - 1, 2, 2); }
       map.starts.forEach((st, i) => { const [x, y] = P(st.x, st.z); g.fillStyle = col[i % 4]; g.strokeStyle = '#000'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill(); g.stroke(); });
     };
     let pending = 0;
@@ -446,13 +446,18 @@ export class Hud {
 
   setLevel(level: string) { this.level = level; }
 
-  private paintBackground(map: TerrainMap = this.map): HTMLCanvasElement {
+  /** Âge pour lequel la mini-carte a été peinte (prairies et mer aux âges anciens, désert et vide à l'âge galactique). */
+  private bgAge = 1;
+  private paintBackground(map: TerrainMap = this.map, ere = 1): HTMLCanvasElement {
     const { half, ext, n, heights, levels } = map;
     const S = half * 2;
     const c = document.createElement('canvas'); c.width = c.height = S;
     const g = c.getContext('2d')!;
     const img = g.createImageData(S, S);
-    const pal = [[150, 86, 52], [186, 112, 68], [222, 150, 98], [240, 205, 150], [8, 6, 16]];
+    // Même progression que le terrain 3D : vert jusqu'à l'âge moderne, puis sec, puis désert ; la mer devient le vide.
+    const k = ere >= 5 ? 1 : ere >= 3 ? 0.35 + (ere - 3) * 0.2 : 0, green = 1 - Math.min(1, k / 0.75);
+    const OLD = [[70, 112, 50], [92, 134, 62], [120, 154, 80], [176, 160, 112], [42, 108, 150]], NEW = [[150, 86, 52], [186, 112, 68], [222, 150, 98], [240, 205, 150], [8, 6, 16]];
+    const pal = NEW.map((c, i) => i === 4 ? (ere >= 5 ? c : OLD[4]) : c.map((v, j) => v + (OLD[i][j] - v) * green));
     for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
       const k = (j + ext - half) * n + (i + ext - half);
       const lv = levels[k] === 4 ? 4 : map.rampMask[k] ? 3 : Math.min(levels[k], 2);
@@ -488,6 +493,8 @@ export class Hud {
     this.refresh?.();
     const { ctx, mini, map, cam } = this;
     const W = mini.width, H = mini.height, half = map.half;
+    const myAge = this.sim && this.ctrl ? this.sim.players[this.ctrl.player]?.ere ?? 1 : 1;
+    if (myAge !== this.bgAge) { this.bgAge = myAge; this.bg = this.paintBackground(this.map, myAge); }
     ctx.drawImage(this.bg, 0, 0, W, H);
     const px = (x: number) => (x / half * 0.5 + 0.5) * W, pz = (z: number) => (z / half * 0.5 + 0.5) * H;
     const colors = ['#ff8a3d', '#46d6ff', '#7be866', '#c98bff', '#bdb6aa'];
@@ -562,7 +569,7 @@ export class Hud {
       ['Points de vie', String(r.pv)],
       ...(r.degats > 0 ? [['Dégâts', `${r.degats} toutes les ${fr(r.cadence)} s (${fr(dps)}/s)`], ['Portée', r.portee <= 1.5 ? 'corps à corps' : fr(r.portee) + ' m']] as [string, string][] : []),
       ['Vitesse', fr(r.vitesse)], ['Population', String(r.pop)], ['Production', `${r.temps} s · ${BUILDINGS[r.produitA]?.nom ?? r.produitA} · ère ${r.ere}`],
-      ['Coût', Object.entries(r.cout).filter(([, v]) => v).map(([k, v]) => `${v} ${k === 'energie' ? 'énergie' : k}`).join(', ')],
+      ['Coût', Object.entries(r.cout).filter(([, v]) => v).map(([k, v]) => `${v} ${(RES_NOM[k] ?? k).toLowerCase()}`).join(', ')],
     ];
     const tag = r.faction === undefined ? 'Commune à toutes les factions' : 'Propre à : ' + GAME.factions[r.faction];
     const mine = sim && this.ctrl ? sim.units.filter((u) => u.owner === this.ctrl!.player && u.kind === kind).length : 0;

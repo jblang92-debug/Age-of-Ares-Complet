@@ -1,6 +1,11 @@
 // LE fichier de règles : toutes les valeurs du jeu (sections 3 à 6 du cahier des charges).
-// Coûts : eau / minerai / énergie / solarite.
-export interface Cost { eau?: number; minerai?: number; energie?: number; solarite?: number }
+// Coûts, façon Age of Empires : nourriture (clé « eau »), bois, pierre/minerai, or (clé « energie »), solarite (dès l'âge industriel).
+// Les clés historiques sont gardées (sauvegardes, réseau) ; seuls les noms affichés changent.
+export interface Cost { eau?: number; bois?: number; minerai?: number; energie?: number; solarite?: number }
+/** Noms affichés des ressources. */
+export const RES_NOM: Record<string, string> = { eau: 'Nourriture', bois: 'Bois', minerai: 'Pierre', energie: 'Or', solarite: 'Solarite' };
+/** « Pas assez de … » pour une ressource. */
+export const manque = (k: string) => ({ eau: 'Pas assez de nourriture', bois: 'Pas assez de bois', minerai: 'Pas assez de pierre', energie: 'Pas assez d\'or', solarite: 'Pas assez de solarite' } as Record<string, string>)[k] ?? 'Pas assez de ' + k;
 
 export const GAME = {
   popMax: 100,
@@ -10,17 +15,17 @@ export const GAME = {
   /** Unités de ressource récoltées par seconde par un ouvrier au travail. */
   recolteParSeconde: 0.9,
   /** Quantité contenue dans chaque bloc d'un gisement. */
-  gisement: { glace: 250, minerai: 300, solarite: 300 },
+  gisement: { glace: 200, arbre: 120, minerai: 300, or: 350, solarite: 300 },
   bonusHauteur: 1.25,
-  depart: { eau: 200, minerai: 200, energie: 50, solarite: 0, ouvriers: 4, eclaireurs: 1 },
+  depart: { eau: 200, bois: 200, minerai: 150, energie: 100, solarite: 0, ouvriers: 4, eclaireurs: 1 },
   /** Âges : on part de l'Antiquité (ou de l'âge moderne, au choix) et on monte jusqu'à l'âge galactique.
    *  Les âges 3, 4 et 5 sont les anciennes ères 1 (Atterrissage), 2 (Expansion) et 3 (Orbitale). */
   eres: [
     { nom: 'Antiquité' },
-    { nom: 'Moyen Âge', cout: { eau: 350, minerai: 220 } as Cost, duree: 60 },
-    { nom: 'Âge moderne', cout: { eau: 450, minerai: 350, energie: 80 } as Cost, duree: 75 },
-    { nom: 'Âge industriel', cout: { eau: 500, minerai: 300 } as Cost, duree: 90 },
-    { nom: 'Âge galactique', cout: { eau: 800, minerai: 600, solarite: 300 } as Cost, duree: 120 },
+    { nom: 'Moyen Âge', cout: { eau: 500, bois: 150 } as Cost, duree: 70 },
+    { nom: 'Âge moderne', cout: { eau: 800, energie: 300 } as Cost, duree: 90 },
+    { nom: 'Âge industriel', cout: { eau: 900, minerai: 400, energie: 400 } as Cost, duree: 100 },
+    { nom: 'Âge galactique', cout: { eau: 1200, minerai: 700, energie: 600, solarite: 300 } as Cost, duree: 130 },
   ],
   factions: ['Consortium Arès', 'Compagnie Boréale', 'Ligue Australe', 'Syndicat Solaris'],
   /** Style de chaque faction, pour le menu. */
@@ -37,7 +42,7 @@ export interface UnitRule {
 }
 
 export const UNITS: Record<string, UnitRule> = {
-  ouvrier:   { temps: 14, nom: 'Ouvrier',   ere: 1, produitA: 'centre',  cout: { eau: 50 },                              pop: 1, pv: 40,  vitesse: 3,   degats: 3,  cadence: 1,   portee: 1, viseAir: false },
+  ouvrier:   { temps: 12, nom: 'Ouvrier',   ere: 1, produitA: 'centre',  cout: { eau: 50 },                              pop: 1, pv: 40,  vitesse: 3,   degats: 3,  cadence: 1,   portee: 1, viseAir: false },
   fantassin: { temps: 18, nom: 'Fantassin', ere: 1, produitA: 'caserne', cout: { eau: 50, minerai: 20 },                 pop: 1, pv: 70,  vitesse: 3,   degats: 8,  cadence: 1,   portee: 5, viseAir: true,  bonus: { vehicule: 1.5, antiblindage: 1.4, ingenieur: 1.4 } },
   eclaireur: { temps: 20, nom: 'Éclaireur', ere: 1, produitA: 'caserne', cout: { eau: 60, energie: 40 },                 pop: 2, pv: 90,  vitesse: 6,   degats: 6,  cadence: 0.8, portee: 3, viseAir: false, bonus: { ouvrier: 2 } },
   blinde:    { temps: 30, nom: 'Blindé',    ere: 2, produitA: 'usine',   cout: { minerai: 150, energie: 60 },            pop: 3, pv: 350, vitesse: 3.5, degats: 35, cadence: 2.2, portee: 8, viseAir: false, bonus: { batiment: 2, infanterie: 1.3, antiblindage: 1 } },
@@ -83,33 +88,35 @@ export const UNITS: Record<string, UnitRule> = {
   spitfire:  { temps: 22, nom: 'Chasseur « Spitfire »', ere: 2, produitA: 'hangar', cout: { minerai: 110, energie: 70, solarite: 20 }, pop: 2, pv: 150, vitesse: 9.5, degats: 10, cadence: 0.7, portee: 5.5, viseAir: true, vole: true, bonus: { air: 1.6 }, faction: 3 },
   imperial:  { temps: 55, nom: 'Vaisseau amiral « Imperial »', ere: 3, produitA: 'hangar', cout: { minerai: 380, energie: 220, solarite: 150 }, pop: 6, pv: 1150, vitesse: 3.2, degats: 52, cadence: 2.4, portee: 11, viseAir: true, vole: true, bonus: { batiment: 1.5 }, faction: 3 },
   // ---- Âges anciens (Antiquité et Moyen Âge) : personnages KayKit, chevaux Quaternius, engins de siège Kenney.
-  milicien:  { temps: 15, nom: 'Milicien', ere: 1, ereMax: 2, produitA: 'caserne', cout: { eau: 50, minerai: 15 }, pop: 1, pv: 65, vitesse: 3, degats: 7, cadence: 1.1, portee: 1.1, viseAir: false, bonus: { batiment: 0.6 } },
-  hachier:   { temps: 17, nom: 'Guerrier à la hache', ere: 1, ereMax: 2, produitA: 'caserne', cout: { eau: 55, minerai: 30 }, pop: 1, pv: 75, vitesse: 2.9, degats: 8, cadence: 1.2, portee: 1.1, viseAir: false, bonus: { vehicule: 2, batiment: 0.6 } },
-  champion:  { temps: 22, nom: 'Champion', ere: 2, ereMax: 2, produitA: 'caserne', cout: { eau: 70, minerai: 60 }, pop: 1, pv: 140, vitesse: 3, degats: 15, cadence: 1.3, portee: 1.3, viseAir: false, bonus: { infanterie: 1.3, batiment: 0.8 } },
-  archer:    { temps: 17, nom: 'Archer', ere: 1, ereMax: 2, produitA: 'archerie', cout: { eau: 30, minerai: 45 }, pop: 1, pv: 45, vitesse: 3, degats: 5, cadence: 1.3, portee: 7, viseAir: true, bonus: { infanterie: 1.3, vehicule: 0.8, batiment: 0.3 } },
-  arbaletrier: { temps: 21, nom: 'Arbalétrier', ere: 2, ereMax: 2, produitA: 'archerie', cout: { eau: 40, minerai: 60 }, pop: 1, pv: 60, vitesse: 2.8, degats: 10, cadence: 1.8, portee: 8.5, viseAir: true, bonus: { infanterie: 1.4, vehicule: 1.1, batiment: 0.3 } },
-  cavalier:  { temps: 18, nom: 'Cavalier éclaireur', ere: 1, ereMax: 2, produitA: 'ecurie', cout: { eau: 70, energie: 20 }, pop: 2, pv: 110, vitesse: 6.2, degats: 6, cadence: 1, portee: 1.3, viseAir: false, bonus: { ouvrier: 2, archer: 1.8, arbaletrier: 1.6, catapulte: 2, batiment: 0.3 } },
-  chevalier: { temps: 26, nom: 'Chevalier', ere: 2, ereMax: 2, produitA: 'ecurie', cout: { eau: 80, minerai: 50, energie: 40 }, pop: 2, pv: 240, vitesse: 5.2, degats: 14, cadence: 1.4, portee: 1.4, viseAir: false, bonus: { infanterie: 1.2, archer: 1.6, arbaletrier: 1.5, catapulte: 2, batiment: 0.6 } },
-  belier:    { temps: 28, nom: 'Bélier', ere: 2, ereMax: 2, produitA: 'atelierSiege', cout: { minerai: 140, energie: 40 }, pop: 3, pv: 320, vitesse: 2.4, degats: 40, cadence: 2.8, portee: 1.8, viseAir: false, bonus: { batiment: 3.5, infanterie: 0.2, vehicule: 0.3 } },
-  catapulte: { temps: 32, nom: 'Catapulte', ere: 2, ereMax: 2, produitA: 'atelierSiege', cout: { minerai: 160, energie: 60 }, pop: 3, pv: 150, vitesse: 2.2, degats: 34, cadence: 5, portee: 12, viseAir: false, bonus: { batiment: 2.5, infanterie: 0.8, vehicule: 0.8 } },
+  milicien:  { temps: 15, nom: 'Milicien', ere: 1, ereMax: 2, produitA: 'caserne', cout: { eau: 50, energie: 15 }, pop: 1, pv: 65, vitesse: 3, degats: 7, cadence: 1.1, portee: 1.1, viseAir: false, bonus: { batiment: 0.6 } },
+  hachier:   { temps: 17, nom: 'Guerrier à la hache', ere: 1, ereMax: 2, produitA: 'caserne', cout: { eau: 55, bois: 25 }, pop: 1, pv: 75, vitesse: 2.9, degats: 8, cadence: 1.2, portee: 1.1, viseAir: false, bonus: { vehicule: 2, batiment: 0.6 } },
+  champion:  { temps: 22, nom: 'Champion', ere: 2, ereMax: 2, produitA: 'caserne', cout: { eau: 70, energie: 30 }, pop: 1, pv: 140, vitesse: 3, degats: 15, cadence: 1.3, portee: 1.3, viseAir: false, bonus: { infanterie: 1.3, batiment: 0.8 } },
+  archer:    { temps: 17, nom: 'Archer', ere: 1, ereMax: 2, produitA: 'archerie', cout: { bois: 30, energie: 40 }, pop: 1, pv: 45, vitesse: 3, degats: 5, cadence: 1.3, portee: 7, viseAir: true, bonus: { infanterie: 1.3, vehicule: 0.8, batiment: 0.3 } },
+  arbaletrier: { temps: 21, nom: 'Arbalétrier', ere: 2, ereMax: 2, produitA: 'archerie', cout: { bois: 35, energie: 45 }, pop: 1, pv: 60, vitesse: 2.8, degats: 10, cadence: 1.8, portee: 8.5, viseAir: true, bonus: { infanterie: 1.4, vehicule: 1.1, batiment: 0.3 } },
+  cavalier:  { temps: 18, nom: 'Cavalier éclaireur', ere: 1, ereMax: 2, produitA: 'ecurie', cout: { eau: 80 }, pop: 2, pv: 110, vitesse: 6.2, degats: 6, cadence: 1, portee: 1.3, viseAir: false, bonus: { ouvrier: 2, archer: 1.8, arbaletrier: 1.6, catapulte: 2, batiment: 0.3 } },
+  chevalier: { temps: 26, nom: 'Chevalier', ere: 2, ereMax: 2, produitA: 'ecurie', cout: { eau: 80, energie: 60 }, pop: 2, pv: 240, vitesse: 5.2, degats: 14, cadence: 1.4, portee: 1.4, viseAir: false, bonus: { infanterie: 1.2, archer: 1.6, arbaletrier: 1.5, catapulte: 2, batiment: 0.6 } },
+  belier:    { temps: 28, nom: 'Bélier', ere: 2, ereMax: 2, produitA: 'atelierSiege', cout: { bois: 160, energie: 60 }, pop: 3, pv: 320, vitesse: 2.4, degats: 40, cadence: 2.8, portee: 1.8, viseAir: false, bonus: { batiment: 3.5, infanterie: 0.2, vehicule: 0.3 } },
+  catapulte: { temps: 32, nom: 'Catapulte', ere: 2, ereMax: 2, produitA: 'atelierSiege', cout: { bois: 180, energie: 100 }, pop: 3, pv: 150, vitesse: 2.2, degats: 34, cadence: 5, portee: 12, viseAir: false, bonus: { batiment: 2.5, infanterie: 0.8, vehicule: 0.8 } },
   navette:   { temps: 25, nom: 'Navette',   ere: 1, produitA: 'quai',    cout: { minerai: 120, energie: 40 },              pop: 2, pv: 220, vitesse: 6,   degats: 0,  cadence: 1,   portee: 0, viseAir: false, vole: true },
 };
 
 export interface BuildingRule { /** Rayon au sol, en mètres. */ rayon: number; nom: string; ere: number; /** Dernier âge où on peut le bâtir. */ ereMax?: number; cout: Cost; pv: number; construction: number; role: string }
 
 export const BUILDINGS: Record<string, BuildingRule> = {
-  centre:     { rayon: 4.7, nom: 'Centre de commandement', ere: 1, cout: {},                                         pv: 2400, construction: 0,  role: 'Ouvriers, dépôt, passage d\'ère, condition de victoire' },
+  centre:     { rayon: 4.7, nom: 'Centre de commandement', ere: 1, cout: {},                                         pv: 3600, construction: 0,  role: 'Ouvriers, dépôt, passage d\'ère, condition de victoire' },
   habitat:    { rayon: 2.6, nom: 'Habitat',                ere: 1, cout: { minerai: 30 },                            pv: 250,  construction: 20, role: '+5 population' },
-  stationEau: { rayon: 2.4, nom: 'Station d\'eau',         ere: 1, cout: { minerai: 100 },                           pv: 400,  construction: 25, role: 'Dépôt d\'eau' },
-  depotMinier:{ rayon: 2.8, nom: 'Dépôt minier',           ere: 1, cout: { minerai: 100 },                           pv: 400,  construction: 25, role: 'Dépôt de minerai' },
-  centrale:   { rayon: 2.4, nom: 'Centrale solaire',       ere: 1, cout: { minerai: 80 },                            pv: 300,  construction: 20, role: '+1 énergie/s' },
+  stationEau: { rayon: 2.4, nom: 'Silo hydroponique',     ere: 1, cout: { minerai: 100 },                           pv: 400,  construction: 25, role: 'Dépôt de nourriture' },
+  scierie:    { rayon: 2.6, nom: 'Scierie',                ere: 1, cout: { minerai: 100 },                           pv: 400,  construction: 25, role: 'Dépôt de bois' },
+  depotMinier:{ rayon: 2.8, nom: 'Dépôt minier',           ere: 1, cout: { minerai: 100 },                           pv: 400,  construction: 25, role: 'Dépôt de pierre et d\'or' },
+  /** Retirée : l'or se récolte désormais dans les mines (ereMax -1 : jamais disponible). */
+  centrale:   { rayon: 2.4, nom: 'Centrale solaire',       ere: 1, ereMax: -1, cout: { minerai: 80 },               pv: 300,  construction: 20, role: '—' },
   caserne:    { rayon: 3.6, nom: 'Caserne',                ere: 1, cout: { minerai: 150 },                           pv: 900,  construction: 35, role: 'Fantassins, éclaireurs' },
   mur:        { rayon: 1.0, nom: 'Mur',                    ere: 1, cout: { minerai: 5 },                             pv: 300,  construction: 5,  role: 'Bloque le passage' },
   porte:      { rayon: 2.6, nom: 'Porte',                  ere: 1, cout: { minerai: 30 },                            pv: 500,  construction: 10, role: 'S\'ouvre pour son camp' },
   tourelle:   { rayon: 1.6, nom: 'Tourelle',               ere: 1, cout: { minerai: 120, energie: 40 },              pv: 600,  construction: 25, role: 'Anti-sol, portée 9' },
   quai:       { rayon: 4.2, nom: 'Quai orbital',           ere: 1, cout: { minerai: 150 },                           pv: 800,  construction: 35, role: 'Navettes de transport ; se construit au bord du vide' },
   raffinerie: { rayon: 2.8, nom: 'Raffinerie de solarite', ere: 2, cout: { minerai: 150 },                           pv: 500,  construction: 30, role: 'Dépôt de solarite' },
-  recycleur:  { rayon: 1.8, nom: 'Recycleur d\'humidité',  ere: 2, cout: { minerai: 60 },                            pv: 200,  construction: 15, role: 'Eau infinie, lente' },
+  recycleur:  { rayon: 2.6, nom: 'Ferme hydroponique',    ere: 1, cout: { minerai: 60 },                            pv: 200,  construction: 15, role: 'Nourriture infinie, lente (un ouvrier)' },
   usine:      { rayon: 4.2, nom: 'Usine',                  ere: 2, cout: { minerai: 200, energie: 100 },             pv: 1200, construction: 45, role: 'Blindés' },
   hangar:     { rayon: 3.8, nom: 'Hangar de drones',       ere: 2, cout: { minerai: 150, energie: 50, solarite: 50 }, pv: 900, construction: 40, role: 'Drones' },
   tourelleAA: { rayon: 1.6, nom: 'Tourelle anti-aérienne', ere: 2, cout: { minerai: 120, energie: 50 },              pv: 500,  construction: 25, role: 'Anti-air, portée 9' },
@@ -145,7 +152,7 @@ export const RESEARCH: Record<string, ResearchRule> = {
 /** Tourelles : portée, dégâts, cadence (section 6). */
 export const TURRETS = {
   /** Le Centre se défend seul, comme le forum d'Age of Empires. */
-  centre:     { portee: 8, degats: 10, cadence: 1,   air: false },
+  centre:     { portee: 9, degats: 18, cadence: 1,   air: false },
   tourelle:   { portee: 9, degats: 15, cadence: 0.8, air: false },
   tourelleAA: { portee: 9, degats: 25, cadence: 1,   air: true },
   /** Sentinelle neutre : garde les gros gisements (option « Centre disputé »). */
@@ -167,15 +174,22 @@ export const RECYCLEUR = { parSeconde: 0.5 };
 export const AGE = { antique: 1, moyen: 2, moderne: 3, industriel: 4, galactique: 5 } as const;
 export const AGE_MAX = GAME.eres.length;
 const KEEP_AGE1_UNITS = new Set(['ouvrier', 'navette']);
-const KEEP_AGE1_BUILDINGS = new Set(['centre', 'habitat', 'stationEau', 'depotMinier', 'centrale', 'caserne', 'mur', 'porte', 'tourelle', 'quai']);
+const KEEP_AGE1_BUILDINGS = new Set(['centre', 'habitat', 'stationEau', 'scierie', 'depotMinier', 'recycleur', 'centrale', 'caserne', 'mur', 'porte', 'tourelle', 'quai']);
 for (const [k, r] of Object.entries(UNITS)) if (!r.ereMax && !KEEP_AGE1_UNITS.has(k)) r.ere += 2;
 for (const [k, r] of Object.entries(BUILDINGS)) if (!r.ereMax && !KEEP_AGE1_BUILDINGS.has(k)) r.ere += 2;
 for (const r of Object.values(RESEARCH)) r.ere = (r.ere ?? 2) + 2;
+// Bâtiments plus solides (façon Age of Empires) : les parties durent plus longtemps.
+for (const r of Object.values(BUILDINGS)) r.pv = Math.round(r.pv * 1.5);
+// Façon Age of Empires : on bâtit en bois jusqu'à l'âge moderne ; murailles, portes et tours restent en pierre.
+const STONE = new Set(['mur', 'porte', 'tourelle']);
+for (const [k, r] of Object.entries(BUILDINGS)) if (r.ere <= 3 && !STONE.has(k) && r.cout.minerai) { r.cout.bois = r.cout.minerai; delete r.cout.minerai; }
+// Âge moderne et après : le bois sert encore un peu (charpentes, caisses) pour les unités sans or.
+
 
 /** Noms affichés aux âges anciens (Antiquité, Moyen Âge) : mêmes rôles, autre époque. */
 const OLD_B: Record<string, [string, string]> = {
-  centre: ['Centre-ville', 'Centre-ville'], habitat: ['Maison', 'Maison'], stationEau: ['Puits', 'Puits'], depotMinier: ['Entrepôt', 'Entrepôt'],
-  centrale: ['Moulin', 'Moulin'], quai: ['Port', 'Port'], tourelle: ['Tour de guet', 'Tour de guet'], caserne: ['Caserne', 'Caserne'],
+  centre: ['Centre-ville', 'Centre-ville'], habitat: ['Maison', 'Maison'], stationEau: ['Moulin', 'Moulin'], depotMinier: ['Camp de mineurs', 'Camp de mineurs'],
+  scierie: ['Camp de bûcherons', 'Camp de bûcherons'], recycleur: ['Ferme', 'Ferme'], quai: ['Port', 'Port'], tourelle: ['Tour de guet', 'Tour de guet'], caserne: ['Caserne', 'Caserne'],
   mur: ['Palissade', 'Muraille'], porte: ['Porte', 'Porte fortifiée'],
 };
 const OLD_U: Record<string, string> = { ouvrier: 'Villageois', navette: 'Barque de transport' };
