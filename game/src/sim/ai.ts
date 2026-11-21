@@ -113,6 +113,9 @@ export class Ai {
     const workers = units.filter((u) => u.kind === 'ouvrier'), army = units.filter((u) => u.kind !== 'ouvrier' && u.kind !== 'navette' && !NAVY.has(u.kind));
     const navy = units.filter((u) => u.kind === 'galere' || u.kind === 'galion'), fishers = units.filter((u) => u.kind === 'pecheur');
     const navettes = units.filter((u) => u.kind === 'navette');
+    // Cartes d'îles aux âges anciens : jusqu'à deux galions servent aussi de transports (avec les navettes).
+    const galions = units.filter((u) => u.kind === 'galion').sort((a, b) => a.id - b.id);
+    if (SEPARATED.has(sim.map.kind)) navettes.unshift(...galions.slice(0, 2));   // en tête : ils partent en premier, les navettes complètent
     // Centre ennemi visé : le plus proche (parties à 4 : chacun pour soi ou en équipes).
     const near = (b: Building) => Math.hypot(b.x - centre0.x, b.z - centre0.z);
     const centre0 = this.mine('centre')[0] ?? { x: 0, z: 0 } as Building;
@@ -352,6 +355,7 @@ export class Ai {
         const fish = sim.nodes.filter((n) => n.kind === 'poisson' && n.amount > 0 && Math.hypot(n.x - q.x, n.z - q.z) < 55).length;
         const navyMax = this.sea?.target ? { facile: 2, normal: 4, difficile: 6 }[this.level] : 0;
         if (fishers.length < Math.min(5, Math.ceil(fish / 3)) && ok('pecheur')) { sim.issue({ type: 'train', b: q.id, kind: 'pecheur' }); continue; }
+        if (SEPARATED.has(sim.map.kind) && ok('galion') && galions.length < 2 && army.length >= 4) { sim.issue({ type: 'train', b: q.id, kind: 'galion' }); continue; }   // transports de troupes
         if (navy.length < navyMax && P.bois > 250 && army.length >= 4) { const k = ok('galion') ? 'galion' : ok('galere') ? 'galere' : ''; if (k) { sim.issue({ type: 'train', b: q.id, kind: k }); continue; } }
       }
       if (navettes.length < (army.length >= 6 ? 2 : 1) + (this.colony ? 1 : 0) && afford(UNITS.navette.cout)) sim.issue({ type: 'train', b: q.id, kind: 'navette' });
@@ -412,11 +416,31 @@ export class Ai {
     if (colonyNav >= 0) { const i = navettes.findIndex((n) => n.id === colonyNav); if (i >= 0) navettes.splice(i, 1); }
 
     // --- Marine : la flotte croise devant la côte ennemie une fois assez nombreuse, sinon garde le Port.
-    if (navy.length) {
-      const idle = navy.filter((u) => !u.group && u.tu < 0 && u.tb < 0);
+    const fleet = navy.filter((u) => !navettes.includes(u));
+    if (fleet.length && sim.tick % 20 === me * 7 % 20) {
       const port = this.mine('quai')[0];
-      if (this.sea?.target && navy.length >= 3 && sim.tick >= first) { if (idle.length && sim.tick % 40 === 0) sim.issue({ type: 'amove', ids: idle.map((u) => u.id), x: this.sea.target.x, z: this.sea.target.z, formation: 'libre' }); }
-      else if (port && idle.length && sim.tick % 60 === 0) { const far = idle.filter((u) => Math.hypot(u.x - port.x, u.z - port.z) > 24); if (far.length) sim.issue({ type: 'move', ids: far.map((u) => u.id), x: port.x, z: port.z, formation: 'libre' }); }
+      // 1. Navires ennemis proches de la flotte ou du Port : on les prend pour cible, en concentrant le feu.
+      const foeShips = sim.units.filter((u) => sim.foe(u.owner, me) && u.wide === 2 && !sim.players[u.owner].neutral);
+      const near = (x: number, z: number, r: number) => foeShips.filter((e) => Math.hypot(e.x - x, e.z - z) < r).sort((a, b) => a.hp - b.hp);
+      const fx = fleet.reduce((a, u) => a + u.x, 0) / fleet.length, fz = fleet.reduce((a, u) => a + u.z, 0) / fleet.length;
+      const prey = near(fx, fz, 32)[0] ?? (port ? near(port.x, port.z, 40)[0] : undefined);
+      // 2. Navires très abîmés : retour au Port (ils ne rapportent rien s'ils coulent).
+      const hurt = fleet.filter((u) => u.hp < u.maxHp * 0.3 && port && Math.hypot(u.x - port.x, u.z - port.z) > 20);
+      if (hurt.length) sim.issue({ type: 'move', ids: hurt.map((u) => u.id), x: port!.x, z: port!.z, formation: 'libre' });
+      const ok2 = fleet.filter((u) => !hurt.includes(u));
+      if (prey && ok2.length) sim.issue({ type: 'attack', ids: ok2.filter((u) => u.tu !== prey.id).map((u) => u.id), unit: prey.id, b: -1 });
+      else {
+        // Navire immobile sur une cible hors d'atteinte : il redevient libre.
+        if (sim.tick % 300 < 20) for (const u of ok2) if (!u.moving && (u.tb >= 0 || u.tu >= 0) && u.cd <= 0) sim.issue({ type: 'stop', ids: [u.id] });
+        const idle = ok2.filter((u) => !u.group && u.tu < 0 && u.tb < 0);
+        // 3. Flotte assez forte : elle bombarde ce qui est à portée de la côte ennemie, sinon elle garde le Port.
+        if (this.sea?.target && ok2.length >= 3 && sim.tick >= first) {
+          // Seulement ce qu'un navire peut bombarder depuis l'eau (eau navigable à portée de tir du bâtiment).
+          const coastal = sim.buildings.filter((b) => sim.foe(b.owner, me) && !sim.players[b.owner].neutral && Math.hypot(b.x - this.sea!.target!.x, b.z - this.sea!.target!.z) < 60 && sim.nav.nearestFree(b.x, b.z, 2, undefined, undefined, Math.floor(b.r + 7)) >= 0)
+            .sort((a, b) => Math.hypot(a.x - fx, a.z - fz) - Math.hypot(b.x - fx, b.z - fz))[0];
+          if (idle.length) sim.issue(coastal ? { type: 'attack', ids: idle.map((u) => u.id), unit: -1, b: coastal.id } : { type: 'amove', ids: idle.map((u) => u.id), x: this.sea.target.x, z: this.sea.target.z, formation: 'libre' });
+        } else if (port && idle.length) { const far = idle.filter((u) => Math.hypot(u.x - port.x, u.z - port.z) > 24); if (far.length) sim.issue({ type: 'move', ids: far.map((u) => u.id), x: port.x, z: port.z, formation: 'libre' }); }
+      }
     }
 
     // --- Armée : défendre la base, sinon attaquer quand le groupe est assez gros.
@@ -463,11 +487,11 @@ export class Ai {
         } else waiting = waiting.filter((u) => this.regionAt(u.x, u.z) === this.home);
         const take = this.fill(nv, waiting, 0);
         if (take.length) { sim.issue({ type: 'load', ids: take.map((u) => u.id), navette: nv.id }); f.st = 'loading'; f.t = sim.tick; }
-        else if (Math.hypot(nv.x - shore.x, nv.z - shore.z) > 10 && !nv.moving) sim.issue({ type: 'move', ids: [nv.id], x: shore.x, z: shore.z, formation: 'libre' });
+        else if (Math.hypot(nv.x - shore.x, nv.z - shore.z) > (nv.wide === 2 ? 22 : 10) && !nv.moving) sim.issue({ type: 'move', ids: [nv.id], x: shore.x, z: shore.z, formation: 'libre' });
       } else if (f.st === 'loading') {
         const more = waiting.length ? this.fill(nv, waiting, sim.units.filter((u) => u.board === nv.id).reduce((a, u) => a + sim.slot(u), 0)) : [];
         if (more.length) sim.issue({ type: 'load', ids: more.map((u) => u.id), navette: nv.id });
-        if (nv.cargo.length > 0 && (sim.navUsed(nv) >= sim.navCap(nv.owner) - 1 || boarding === 0 || sim.tick - f.t > 260)) {
+        if (nv.cargo.length > 0 && (sim.navUsed(nv) >= sim.navCap(nv.owner, nv) - 1 || boarding === 0 || sim.tick - f.t > 260)) {
           for (const u of sim.units) if (u.board === nv.id) u.board = -1;          // les retardataires attendront le prochain voyage
           sim.issue({ type: 'unload', id: nv.id, x: land.x, z: land.z }); f.st = 'flying'; f.t = sim.tick;
         } else if (!nv.cargo.length && !boarding && sim.tick - f.t > 40) f.st = 'idle';
@@ -544,7 +568,7 @@ export class Ai {
 
   /** Choisit dans `waiting` les unités qui tiennent encore dans la navette (places selon la taille). */
   private fill(nv: Unit, waiting: Unit[], reserved: number): Unit[] {
-    let room = this.sim.navCap(nv.owner) - this.sim.navUsed(nv) - reserved;
+    let room = this.sim.navCap(nv.owner, nv) - this.sim.navUsed(nv) - reserved;
     const take: Unit[] = [];
     for (let i = 0; i < waiting.length && room > 0;) {
       const s = this.sim.slot(waiting[i]);

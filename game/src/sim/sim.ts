@@ -760,7 +760,7 @@ export class Sim {
       if (nv.wide === 2) {
         // Galion : il vient sur l'eau la plus proche du groupe.
         const c = this.nav.nearestFree(cx, cz, 2, undefined, undefined, 30);
-        if (c >= 0 && Math.hypot(nv.x - this.nav.cx(c), nv.z - this.nav.cz(c)) > 3) { nv.drop = null; this.moveGroup([nv], this.nav.cx(c), this.nav.cz(c), 'libre'); }
+        if (c >= 0 && Math.hypot(nv.x - cx, nv.z - cz) > 16 && Math.hypot(nv.x - this.nav.cx(c), nv.z - this.nav.cz(c)) > 3) { nv.drop = null; this.moveGroup([nv], this.nav.cx(c), this.nav.cz(c), 'libre'); }
       } else if (Math.hypot(nv.x - cx, nv.z - cz) > 5) { nv.drop = null; this.moveGroup([nv], cx, cz, 'libre'); }
     } else if (o.type === 'unload') {
       const nv = this.byId.get(o.id);
@@ -901,7 +901,7 @@ export class Sim {
       u.px = u.x; u.pz = u.z;
       if (u.cd > 0) u.cd -= DT;
       if (u.board >= 0) this.boarding(u);
-      if (Sim.carrier(u)) this.shuttle(u);
+      if (Sim.carrier(u)) { this.shuttle(u); if (u.kind === 'galion' && !u.drop && !u.ferryTo) this.combat(u); }   // le galion transporte et combat
       else if (u.job) this.workers(u); else if (u.kind === 'pecheur') { if (this.tick % 20 === u.id % 20 && !u.moving) { const f = this.nearestNode(u.x, u.z, 'poisson', 40); if (f) this.startGather(u, f); } } else if (u.kind !== 'ouvrier') this.combat(u);
       const g = u.group;
       if (!g) {

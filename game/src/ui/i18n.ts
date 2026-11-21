@@ -18,6 +18,7 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const NAME_RE = new RegExp('(?<![A-Za-zÀ-ÿ])(' + NAMES.map(esc).join('|') + ')(?![A-Za-zÀ-ÿ])', 'gi');
 const NUM_RE = /[+\-−]?\d+(?:[.,]\d+)?/g;
 const memo = new Map<string, string>();
+const RES_EN: Record<string, string> = { nourriture: 'food', bois: 'wood', pierre: 'stone', or: 'gold', solarite: 'solarite', eau: 'water', minerai: 'ore', 'énergie': 'energy' };
 /** Modèle d'une phrase : noms remplacés par @, nombres par #. */
 export function template(t: string, names?: string[], nums?: string[]): string {
   return t.replace(NAME_RE, (m) => { names?.push(m); return '@'; }).replace(NUM_RE, (m) => { nums?.push(m); return '#'; });
@@ -36,7 +37,10 @@ function seg(s: string): string {
   const exact = ex0 !== undefined && !/[#@]/.test(ex0) ? ex0 : undefined;   // un modèle (# ou @) se remplit plus bas
   if (exact !== undefined) return lead + (t === t.toLowerCase() && EN[t] === undefined ? exact.toLowerCase() : exact) + tail;
   const names: string[] = [], nums: string[] = [];
-  const en = TPL[template(t, names, nums)];
+  const tp = template(t, names, nums);
+  let en = TPL[tp];
+  // Liste de coûts « Bâtiment : 90 bois, 40 or » : ressources traduites une à une.
+  if (en === undefined) { const m = /^@ ?: (# [a-zà-ÿ]+(?:, # [a-zà-ÿ]+)*)$/.exec(tp); if (m && m[1].split(', ').every((x) => RES_EN[x.slice(2)])) en = '@: ' + m[1].split(', ').map((x) => '# ' + RES_EN[x.slice(2)]).join(', '); }
   if (en === undefined) return s;
   let i = 0, j = 0;
   return lead + en.replace(/[@#]/g, (c) => c === '@' ? nameEn(names[i++] ?? '') : (nums[j++] ?? '').replace('−', '-').replace(',', '.')) + tail;
@@ -49,6 +53,7 @@ export function tr(s: string): string {
   r = seg(s);
   if (r === s && s.includes(' · ')) r = s.split(' · ').map(seg).join(' · ');
   if (r === s && s.includes(' — ')) r = s.split(' — ').map(seg).join(' — ');
+  if (r === s && typeof window !== 'undefined') { const m = ((window as unknown as { __miss?: Set<string> }).__miss ??= new Set()); if (m.size < 500) m.add(s); }   // textes non traduits (outil de relecture)
   if (memo.size > 5000) memo.clear();
   memo.set(s, r);
   return r;

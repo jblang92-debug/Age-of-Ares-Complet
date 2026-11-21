@@ -8,12 +8,12 @@ export interface Vec2 { x: number; z: number }
 export type MapKind = 'terre' | 'cotiere' | 'continentale' | 'mont' | 'rivieres' | 'grandesiles' | 'petitesiles';
 export const MAP_KINDS: { key: MapKind; nom: string; desc: string }[] = [
   { key: 'terre', nom: 'Terre ferme', desc: 'plateaux, sans vide' },
-  { key: 'cotiere', nom: 'Côtière', desc: 'deux côtes sur le vide' },
+  { key: 'cotiere', nom: 'Côtière', desc: 'deux côtes sur la mer' },
   { key: 'continentale', nom: 'Continentale', desc: 'un continent, des îlots' },
   { key: 'mont', nom: 'Mont de solarite', desc: 'un cratère riche au centre' },
   { key: 'rivieres', nom: 'Rivières', desc: 'une faille et trois gués' },
-  { key: 'grandesiles', nom: 'Grandes îles', desc: 'chacun son île, navettes' },
-  { key: 'petitesiles', nom: 'Petites îles', desc: 'îles et îlots, navettes' },
+  { key: 'grandesiles', nom: 'Grandes îles', desc: 'chacun son île, bateaux' },
+  { key: 'petitesiles', nom: 'Petites îles', desc: 'îles et îlots, bateaux' },
 ];
 /** Cartes où le vide entoure la zone de jeu (sinon, un massif rocheux). */
 export const VOID_BORDER: ReadonlySet<MapKind> = new Set(['cotiere', 'continentale', 'grandesiles', 'petitesiles']);

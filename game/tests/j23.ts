@@ -44,4 +44,18 @@ for (let t = 0; t < 600 * 30 && s2.winner < 0; t++) { for (const a of ais) a.ste
   if (t % 300 === 0) { maxFish = Math.max(maxFish, s2.units.filter((u) => u.kind === 'pecheur').length); maxNavy = Math.max(maxNavy, s2.units.filter((u) => u.kind === 'galere' || u.kind === 'galion').length); } }
 console.log(`IA côtière : ${maxFish} bateaux de pêche, ${maxNavy} navires de guerre, ports ${s2.buildings.filter((b) => b.kind === 'quai').length}, nourriture pêchée ${s2.stats.map((x) => x.rec.eau).join('/')}`);
 ok(maxFish >= 1, 'l\'IA pêche sur une carte côtière');
+// IA sur Grandes îles depuis l'Antiquité : les galions transportent des troupes.
+{
+  const g3 = generateMap(4242, SIZES.moyenne, 'grandesiles', 2), s3 = new Sim(g3.terrain, g3.objects);
+  for (const o of [0, 1]) { for (let i = 0; i < GAME.depart.ouvriers; i++) s3.spawn('ouvrier', o, g3.objects.spawns[o][i + 4].x, g3.objects.spawns[o][i + 4].z); }
+  s3.setStartAge(1);
+  const a3 = [new Ai(s3, 0, 'difficile'), new Ai(s3, 1, 'normal')];
+  let cargo = 0, fights = 0;
+  for (let t = 0; t < 600 * 36 && s3.winner < 0; t++) { for (const a of a3) a.step(); s3.step();
+    for (const e of s3.events) if (e.t === 'shot' && (e.kind === 'galere' || e.kind === 'galion')) fights++;
+    s3.events.length = 0; for (const u of s3.units) if (u.kind === 'galion') cargo = Math.max(cargo, u.cargo.length); }
+  console.log(`Grandes îles : galion chargé jusqu'à ${cargo} unités, ${fights} tirs de navires`);
+  ok(cargo >= 3, 'l\'IA transporte des troupes en galion');
+  ok(fights > 20, 'les flottes se battent');
+}
 console.log(bad ? `${bad} ÉCHECS` : 'TOUT VERT'); process.exit(bad ? 1 : 0);

@@ -246,3 +246,12 @@ Dans ce dossier, depuis le Terminal :
 - Sauvegardes d'avant l'âge de la poudre : l'âge de départ est renuméroté (`saveAge`).
 - Version anglaise : noms des unités, bâtiments et âges anciens.
 - Test : `npx tsx tests/j23.ts` (pêche, galion, IA côtière). j14 : limite portée à 80 min (les parties à 4 durent ~66 min).
+
+## 21/11/2026 (nuit) — Marine de l'IA plus fine, galion combattant, anglais
+
+- Le galion combat aussi (il ne faisait que transporter). L'IA garde jusqu'à deux galions comme transports sur les cartes d'îles (les navettes complètent).
+- Flotte de l'IA : feu concentré sur le navire ennemi le plus abîmé (près de la flotte ou du Port), navires très abîmés renvoyés au Port, bombardement des seuls bâtiments à portée depuis l'eau, cibles hors d'atteinte abandonnées.
+- Embarquement : le galion ne se déplace plus à chaque ordre de chargement (les troupes montaient une par une).
+- Anglais : listes de coûts traduites automatiquement (« Caserne : 135 bois » → « Barracks: 135 wood »), menu Époque, descriptions des cartes, messages de marine. Les textes non traduits sont relevés dans `window.__miss` (outil de relecture).
+- Descriptions des cartes : « mer » et « bateaux » au lieu de « vide » et « navettes ».
+- j23 : l'IA transporte des troupes en galion et les flottes se battent.

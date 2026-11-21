@@ -896,7 +896,7 @@ export class UnitViews {
       const rs = u.radius * 1.15 * big;
       // Navette du joueur : une pastille par place, allumée si occupée.
       if (u.kind === 'navette' && u.owner === this.me) {
-        const cap = this.sim.navCap(this.me), used = this.sim.navUsed(u), y = v.pos.y + (v.look.hover ?? 4) + 2.6;
+        const cap = this.sim.navCap(this.me, u), used = this.sim.navUsed(u), y = v.pos.y + (v.look.hover ?? 4) + 2.6;
         for (let k = 0; k < cap; k++) {
           m.compose(p.set(x + (k - (cap - 1) / 2) * 0.55, y, z), q.identity(), s.set(1, 1, 1));
           if (k < used) { if (nOn < 96) this.dotOn.setMatrixAt(nOn++, m); } else if (nOff < 96) this.dotOff.setMatrixAt(nOff++, m);

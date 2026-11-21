@@ -1,6 +1,7 @@
 // Traductions anglaises. EN_NAMES : noms propres du jeu (unités, bâtiments, recherches, factions, ères).
 // EN : phrases et morceaux de phrases ; « # » = un nombre, « @ » = un nom de EN_NAMES.
 export const EN_NAMES: Record<string, string> = {
+  'Silo': 'Silo', 'Hangar': 'Hangar',
   // Âges anciens et âge de la poudre
   'Villageois': 'Villager', 'Milicien': 'Militia', 'Guerrier à la hache': 'Axeman', 'Champion': 'Champion', 'Archer': 'Archer', 'Arbalétrier': 'Crossbowman',
   'Cavalier éclaireur': 'Scout Cavalry', 'Chevalier': 'Knight', 'Bélier': 'Battering Ram', 'Bateau de pêche': 'Fishing Boat', 'Catapulte': 'Catapult', 'Barque de transport': 'Transport Boat',
@@ -29,6 +30,14 @@ export const EN_NAMES: Record<string, string> = {
 };
 export const EN: Record<string, string> = {
   // --- Ressources façon Age of Empires
+  'Embarquement dans le galion': 'Boarding the galleon', 'Aucun transport disponible : construis un Port (navette ou galion)': 'No transport available: build a Dock (shuttle or galleon)',
+  'Pas d\'eau navigable près de ce rivage': 'No navigable water near this shore',
+  'Ton peuple entre dans le @': 'Your people enter the @', 'Ton peuple entre dans l\'@': 'Your people enter the @', 'Bâtiment d\'un âge révolu': 'Building from a bygone age',
+  'Époque': 'Era', 'tous les âges': 'all ages', 'châteaux, poudre': 'castles, gunpowder', 'départ high-tech': 'high-tech start', 'de l\'Antiquité à l\'âge galactique': 'from Antiquity to the Galactic Age',
+  'deux côtes sur la mer': 'two coasts on the sea', 'un continent, des îlots': 'a continent, islets', 'un cratère riche au centre': 'a rich crater in the middle', 'une faille et trois gués': 'a rift and three fords',
+  'chacun son île, bateaux': 'an island each, boats', 'îles et îlots, bateaux': 'islands and islets, boats', 'Replier / déplier': 'Collapse / expand',
+  ' bouton « EN LIGNE » : crée un salon et envoie le code ou le lien à tes amis (gratuit, sans compte, jusqu\'à 4 joueurs). Chacun choisit sa faction et son équipe (même lettre = alliés) ; l\'hôte règle la carte et met des IA aux places libres. Si quelqu\'un se déconnecte, l\'IA joue à sa place jusqu\'à son retour (il rouvre simplement le jeu). Garde le jeu au premier plan pendant la partie, surtout si tu es l\'hôte.':
+    ' “ONLINE” button: create a lobby and send the code or link to your friends (free, no account, up to 4 players). Everyone picks a faction and a team (same letter = allies); the host sets the map and puts AIs in free slots. If someone disconnects, the AI plays for them until they return (they simply reopen the game). Keep the game in the foreground during the match, especially if you are the host.',
   'Âge de la poudre': 'Gunpowder Age', 'Mousquetaire': 'Musketeer', 'Canon': 'Cannon', 'Galère de guerre': 'War galley', 'Galion à canons': 'Cannon galleon',
   'Départ : Antiquité': 'Start: Antiquity', 'Départ : Moyen Âge': 'Start: Middle Ages', 'Départ : âge moderne': 'Start: modern age', 'Archers, arbalétriers, mousquetaires': 'Archers, crossbowmen, musketeers',
   'Béliers, catapultes, canons': 'Rams, catapults, cannons', 'Transport, navires de guerre aux âges anciens ; au bord de l\'eau': 'Transport, warships in early ages; on the shore',
