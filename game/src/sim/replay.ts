@@ -3,7 +3,7 @@
 import type { Sim, Order } from './sim';
 import type { Ai } from './ai';
 
-export interface SaveGame { v: 1; seed: number; size: string; kind: string; level: string; /** Options de la partie (absentes dans les anciennes sauvegardes). */ doctrine?: string; fog?: boolean; blitz?: boolean; storms?: boolean; contested?: boolean; ressources?: string; faction?: number; players?: 'duel' | 'ffa' | 'equipes'; tick: number; orders: [number, Order][]; /** Date d'enregistrement (ms) et issue de la partie, pour les listes. */ at?: number; result?: string }
+export interface SaveGame { v: 1; seed: number; size: string; kind: string; level: string; /** Options de la partie (absentes dans les anciennes sauvegardes). */ doctrine?: string; fog?: boolean; blitz?: boolean; storms?: boolean; contested?: boolean; ressources?: string; faction?: number; /** Âge de départ (absent : âge moderne, comme avant les âges anciens). */ age?: number; players?: 'duel' | 'ffa' | 'equipes'; tick: number; orders: [number, Order][]; /** Date d'enregistrement (ms) et issue de la partie, pour les listes. */ at?: number; result?: string }
 
 /** Avance la partie jusqu'au tick `to` en réinjectant les ordres enregistrés. Renvoie l'indice du prochain ordre. */
 export function replayTo(sim: Sim, ais: Ai[], orders: [number, Order][], from: number, to: number, onEvents?: () => void): number {

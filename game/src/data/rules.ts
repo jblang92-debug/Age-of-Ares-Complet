@@ -13,10 +13,14 @@ export const GAME = {
   gisement: { glace: 250, minerai: 300, solarite: 300 },
   bonusHauteur: 1.25,
   depart: { eau: 200, minerai: 200, energie: 50, solarite: 0, ouvriers: 4, eclaireurs: 1 },
+  /** Âges : on part de l'Antiquité (ou de l'âge moderne, au choix) et on monte jusqu'à l'âge galactique.
+   *  Les âges 3, 4 et 5 sont les anciennes ères 1 (Atterrissage), 2 (Expansion) et 3 (Orbitale). */
   eres: [
-    { nom: 'Atterrissage' },
-    { nom: 'Expansion', cout: { eau: 500, minerai: 300 } as Cost, duree: 90 },
-    { nom: 'Orbitale', cout: { eau: 800, minerai: 600, solarite: 300 } as Cost, duree: 120 },
+    { nom: 'Antiquité' },
+    { nom: 'Moyen Âge', cout: { eau: 350, minerai: 220 } as Cost, duree: 60 },
+    { nom: 'Âge moderne', cout: { eau: 450, minerai: 350, energie: 80 } as Cost, duree: 75 },
+    { nom: 'Âge industriel', cout: { eau: 500, minerai: 300 } as Cost, duree: 90 },
+    { nom: 'Âge galactique', cout: { eau: 800, minerai: 600, solarite: 300 } as Cost, duree: 120 },
   ],
   factions: ['Consortium Arès', 'Compagnie Boréale', 'Ligue Australe', 'Syndicat Solaris'],
   /** Style de chaque faction, pour le menu. */
@@ -26,7 +30,7 @@ export const GAME = {
 export interface UnitRule {
   /** Durée de production, en secondes. */
   temps: number;
-  nom: string; ere: 1 | 2 | 3; produitA: string; cout: Cost; pop: number; pv: number;
+  nom: string; ere: number; /** Dernier âge où l'unité est encore produite (unités antiques). */ ereMax?: number; produitA: string; cout: Cost; pop: number; pv: number;
   vitesse: number; degats: number; cadence: number; portee: number; viseAir: boolean; vole?: boolean;
   bonus?: Record<string, number>;
   /** Unité propre à une faction (indice dans GAME.factions) ; absente : commune à toutes. */ faction?: number;
@@ -78,10 +82,20 @@ export const UNITS: Record<string, UnitRule> = {
   canonAA:   { temps: 28, nom: 'Canon anti-aérien', ere: 2, produitA: 'usine', cout: { minerai: 160, energie: 90 }, pop: 3, pv: 300, vitesse: 3.4, degats: 26, cadence: 1, portee: 10.5, viseAir: true, bonus: { air: 1.9, sol: 0.4 }, faction: 3 },
   spitfire:  { temps: 22, nom: 'Chasseur « Spitfire »', ere: 2, produitA: 'hangar', cout: { minerai: 110, energie: 70, solarite: 20 }, pop: 2, pv: 150, vitesse: 9.5, degats: 10, cadence: 0.7, portee: 5.5, viseAir: true, vole: true, bonus: { air: 1.6 }, faction: 3 },
   imperial:  { temps: 55, nom: 'Vaisseau amiral « Imperial »', ere: 3, produitA: 'hangar', cout: { minerai: 380, energie: 220, solarite: 150 }, pop: 6, pv: 1150, vitesse: 3.2, degats: 52, cadence: 2.4, portee: 11, viseAir: true, vole: true, bonus: { batiment: 1.5 }, faction: 3 },
+  // ---- Âges anciens (Antiquité et Moyen Âge) : personnages KayKit, chevaux Quaternius, engins de siège Kenney.
+  milicien:  { temps: 15, nom: 'Milicien', ere: 1, ereMax: 2, produitA: 'caserne', cout: { eau: 50, minerai: 15 }, pop: 1, pv: 65, vitesse: 3, degats: 7, cadence: 1.1, portee: 1.1, viseAir: false, bonus: { batiment: 0.6 } },
+  hachier:   { temps: 17, nom: 'Guerrier à la hache', ere: 1, ereMax: 2, produitA: 'caserne', cout: { eau: 55, minerai: 30 }, pop: 1, pv: 75, vitesse: 2.9, degats: 8, cadence: 1.2, portee: 1.1, viseAir: false, bonus: { vehicule: 2, batiment: 0.6 } },
+  champion:  { temps: 22, nom: 'Champion', ere: 2, ereMax: 2, produitA: 'caserne', cout: { eau: 70, minerai: 60 }, pop: 1, pv: 140, vitesse: 3, degats: 15, cadence: 1.3, portee: 1.3, viseAir: false, bonus: { infanterie: 1.3, batiment: 0.8 } },
+  archer:    { temps: 17, nom: 'Archer', ere: 1, ereMax: 2, produitA: 'archerie', cout: { eau: 30, minerai: 45 }, pop: 1, pv: 45, vitesse: 3, degats: 5, cadence: 1.3, portee: 7, viseAir: true, bonus: { infanterie: 1.3, vehicule: 0.8, batiment: 0.3 } },
+  arbaletrier: { temps: 21, nom: 'Arbalétrier', ere: 2, ereMax: 2, produitA: 'archerie', cout: { eau: 40, minerai: 60 }, pop: 1, pv: 60, vitesse: 2.8, degats: 10, cadence: 1.8, portee: 8.5, viseAir: true, bonus: { infanterie: 1.4, vehicule: 1.1, batiment: 0.3 } },
+  cavalier:  { temps: 18, nom: 'Cavalier éclaireur', ere: 1, ereMax: 2, produitA: 'ecurie', cout: { eau: 70, energie: 20 }, pop: 2, pv: 110, vitesse: 6.2, degats: 6, cadence: 1, portee: 1.3, viseAir: false, bonus: { ouvrier: 2, archer: 1.8, arbaletrier: 1.6, catapulte: 2, batiment: 0.3 } },
+  chevalier: { temps: 26, nom: 'Chevalier', ere: 2, ereMax: 2, produitA: 'ecurie', cout: { eau: 80, minerai: 50, energie: 40 }, pop: 2, pv: 240, vitesse: 5.2, degats: 14, cadence: 1.4, portee: 1.4, viseAir: false, bonus: { infanterie: 1.2, archer: 1.6, arbaletrier: 1.5, catapulte: 2, batiment: 0.6 } },
+  belier:    { temps: 28, nom: 'Bélier', ere: 2, ereMax: 2, produitA: 'atelierSiege', cout: { minerai: 140, energie: 40 }, pop: 3, pv: 320, vitesse: 2.4, degats: 40, cadence: 2.8, portee: 1.8, viseAir: false, bonus: { batiment: 3.5, infanterie: 0.2, vehicule: 0.3 } },
+  catapulte: { temps: 32, nom: 'Catapulte', ere: 2, ereMax: 2, produitA: 'atelierSiege', cout: { minerai: 160, energie: 60 }, pop: 3, pv: 150, vitesse: 2.2, degats: 34, cadence: 5, portee: 12, viseAir: false, bonus: { batiment: 2.5, infanterie: 0.8, vehicule: 0.8 } },
   navette:   { temps: 25, nom: 'Navette',   ere: 1, produitA: 'quai',    cout: { minerai: 120, energie: 40 },              pop: 2, pv: 220, vitesse: 6,   degats: 0,  cadence: 1,   portee: 0, viseAir: false, vole: true },
 };
 
-export interface BuildingRule { /** Rayon au sol, en mètres. */ rayon: number; nom: string; ere: 1 | 2 | 3; cout: Cost; pv: number; construction: number; role: string }
+export interface BuildingRule { /** Rayon au sol, en mètres. */ rayon: number; nom: string; ere: number; /** Dernier âge où on peut le bâtir. */ ereMax?: number; cout: Cost; pv: number; construction: number; role: string }
 
 export const BUILDINGS: Record<string, BuildingRule> = {
   centre:     { rayon: 4.7, nom: 'Centre de commandement', ere: 1, cout: {},                                         pv: 2400, construction: 0,  role: 'Ouvriers, dépôt, passage d\'ère, condition de victoire' },
@@ -105,11 +119,15 @@ export const BUILDINGS: Record<string, BuildingRule> = {
   ascenseur:  { rayon: 5.5, nom: 'Ascenseur orbital',      ere: 3, cout: { eau: 1000, minerai: 1000, energie: 500, solarite: 600 }, pv: 6000, construction: 240, role: 'Merveille : s\'il tient 5 min une fois achevé, c\'est la victoire' },
   arene:      { rayon: 3.4, nom: 'Salle d\'armes',         ere: 1, cout: { minerai: 150 },                           pv: 900,  construction: 35, role: 'Combattants au corps à corps' },
   atelier:    { rayon: 4.2, nom: 'Atelier mécanique',      ere: 2, cout: { minerai: 220, energie: 120 },             pv: 1300, construction: 50, role: 'Machines de combat' },
+  // ---- Âges anciens.
+  archerie:   { rayon: 3.4, nom: 'Archerie',               ere: 1, ereMax: 2, cout: { minerai: 150 },                pv: 800,  construction: 30, role: 'Archers et arbalétriers' },
+  ecurie:     { rayon: 3.6, nom: 'Écurie',                 ere: 1, ereMax: 2, cout: { minerai: 170 },                pv: 850,  construction: 35, role: 'Cavalerie' },
+  atelierSiege: { rayon: 3.8, nom: 'Atelier de siège',     ere: 2, ereMax: 2, cout: { minerai: 220, energie: 40 },   pv: 900,  construction: 40, role: 'Béliers et catapultes' },
   labo:       { rayon: 3.2, nom: 'Laboratoire',            ere: 2, cout: { minerai: 150, solarite: 50 },             pv: 700,  construction: 40, role: '6 recherches' },
 };
 
-/** Recherches du Laboratoire (ère 2). */
-export interface ResearchRule { nom: string; effet: string; cout: Cost; temps: number; /** Ère minimale (2 par défaut, comme le laboratoire). */ ere?: number }
+/** Recherches du Laboratoire (âge industriel). */
+export interface ResearchRule { nom: string; effet: string; cout: Cost; temps: number; /** Âge minimal (fixé plus bas). */ ere?: number }
 export const RESEARCH: Record<string, ResearchRule> = {
   armure:  { nom: 'Armure',            effet: '-15 % de dégâts subis par les unités', cout: { minerai: 150, solarite: 60 }, temps: 40 },
   degats:  { nom: 'Armement',          effet: '+15 % de dégâts',                      cout: { minerai: 150, solarite: 80 }, temps: 40 },
@@ -142,3 +160,28 @@ export const SHIELD = { rayon: 10, max: 1500, recharge: 20, energieParSeconde: 2
 /** Navette : nombre d'unités transportées. */
 export const NAVETTE = { places: 8 };
 export const RECYCLEUR = { parSeconde: 0.5 };
+
+// ---- Âges : les ères 1, 2 et 3 d'origine deviennent les âges 3 (moderne), 4 (industriel) et 5 (galactique).
+// Ce qui existe dès l'Antiquité garde l'âge 1 : Centre, bâtiments de base, ouvrier, navette (bateau aux âges anciens).
+/** Premier âge des anciennes ères : moderne (3), industriel (4), galactique (5). */
+export const AGE = { antique: 1, moyen: 2, moderne: 3, industriel: 4, galactique: 5 } as const;
+export const AGE_MAX = GAME.eres.length;
+const KEEP_AGE1_UNITS = new Set(['ouvrier', 'navette']);
+const KEEP_AGE1_BUILDINGS = new Set(['centre', 'habitat', 'stationEau', 'depotMinier', 'centrale', 'caserne', 'mur', 'porte', 'tourelle', 'quai']);
+for (const [k, r] of Object.entries(UNITS)) if (!r.ereMax && !KEEP_AGE1_UNITS.has(k)) r.ere += 2;
+for (const [k, r] of Object.entries(BUILDINGS)) if (!r.ereMax && !KEEP_AGE1_BUILDINGS.has(k)) r.ere += 2;
+for (const r of Object.values(RESEARCH)) r.ere = (r.ere ?? 2) + 2;
+
+/** Noms affichés aux âges anciens (Antiquité, Moyen Âge) : mêmes rôles, autre époque. */
+const OLD_B: Record<string, [string, string]> = {
+  centre: ['Centre-ville', 'Centre-ville'], habitat: ['Maison', 'Maison'], stationEau: ['Puits', 'Puits'], depotMinier: ['Entrepôt', 'Entrepôt'],
+  centrale: ['Moulin', 'Moulin'], quai: ['Port', 'Port'], tourelle: ['Tour de guet', 'Tour de guet'], caserne: ['Caserne', 'Caserne'],
+  mur: ['Palissade', 'Muraille'], porte: ['Porte', 'Porte fortifiée'],
+};
+const OLD_U: Record<string, string> = { ouvrier: 'Villageois', navette: 'Barque de transport' };
+/** Nom complet d'un bâtiment selon l'âge de son camp. */
+export function nomBat(kind: string, ere: number): string { return ere <= 2 && OLD_B[kind] ? OLD_B[kind][ere - 1] : BUILDINGS[kind]?.nom ?? kind; }
+/** Nom d'une unité selon l'âge de son camp. */
+export function nomUnit(kind: string, ere: number): string { return ere <= 2 && OLD_U[kind] ? OLD_U[kind] : UNITS[kind]?.nom ?? kind; }
+/** Encore disponible à cet âge (les unités et bâtiments antiques disparaissent à l'âge moderne). */
+export function dispo(r: { ere: number; ereMax?: number }, ere: number): boolean { return r.ere <= ere && (!r.ereMax || ere <= r.ereMax); }

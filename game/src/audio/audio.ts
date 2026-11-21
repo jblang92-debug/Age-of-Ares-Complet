@@ -5,7 +5,8 @@ import { BASE } from '../render/assets';
 const SFX = ['shot1', 'shot2', 'shot3', 'shotbig', 'boom1', 'boom2', 'boombig', 'place', 'shield', 'click', 'error', 'ok', 'age'];
 const VOICES = ['select1', 'select2', 'move1', 'move2', 'attack1', 'attack2', 'built', 'ready', 'alert', 'lack', 'pop', 'era2', 'era3', 'win', 'lose'];
 /** Familles de sons à variantes (fichiers nom_1.mp3 … nom_n.mp3, packs CC0 Kenney, CoMiGo, Kronbits, NenadSimic). */
-const GROUPS: Record<string, number> = { mort_inf: 4, expl_veh: 6, expl_air: 3, expl_bat: 4, debris: 5, tourelle: 4, tir_lourd: 3, champ: 2 };
+const GROUPS: Record<string, number> = { mort_inf: 4, expl_veh: 6, expl_air: 3, expl_bat: 4, debris: 5, tourelle: 4, tir_lourd: 3, champ: 2,
+  /** Âges anciens (StarNinjas et Kenney RPG Audio, CC0) : épées, flèches, catapultes, chocs sur le bois. */ epee: 6, fleche: 4, catapulte: 3, bois: 2 };
 const CALM = ['deep_space_watch', 'silent_orbits', 'silent_orbits_2'], TENSE = 'command_room_tension';
 
 export class GameAudio {

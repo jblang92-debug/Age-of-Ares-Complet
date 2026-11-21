@@ -32,6 +32,7 @@ import { Online, simHash } from './net/online';
 
 /** Arme de chaque unité qui tire à distance : effet, hauteur de la bouche à feu, écart entre deux canons. */
 const UNIT_WEAPON: Partial<Record<UnitKind, { w: Weapon; y?: number; twin?: number }>> = {
+  archer: { w: 'fleche', y: 1.3 }, arbaletrier: { w: 'fleche', y: 1.3 }, catapulte: { w: 'pierre', y: 2.2 },
   tireur: { w: 'precision', y: 1.4 }, grenadier: { w: 'grenade', y: 1.4 }, garde: { w: 'pompe', y: 1.4 }, commando: { w: 'mitrailleuse', y: 1.3 }, vigile: { w: 'flak', y: 1.4 }, exo: { w: 'mitrailleuse', y: 2.2, twin: 0.5 }, sam: { w: 'salve', y: 2, twin: 0.5 },
   chasseurChars: { w: 'canon', y: 1.5 }, avc: { w: 'mitrailleuse', y: 1.9, twin: 0.2 }, huit: { w: 'canon', y: 1.9 }, canonAA: { w: 'flak', y: 2.2, twin: 0.4 },
   challenger: { w: 'plasmaBleu', y: 5.2, twin: 0.7 }, spitfire: { w: 'mitrailleuse', y: 5.4, twin: 0.6 }, zenith: { w: 'bombes', y: 5.6 }, pancake: { w: 'laser', y: 5.1, twin: 0 },
@@ -83,7 +84,7 @@ const hud = new Hud(map, cam);
 devTree(document.body);   // consignes « clique / clic droit » à la souris
 translatePage();          // anglais si choisi (ou appareil réglé dans une autre langue que le français)
 const fog = new FogOfWar(map, sim, me);
-let opts = { doctrine: 'industrielle' as Doctrine, fog: true, blitz: false, storms: false, contested: false, res: 'normales', faction: 0 };
+let opts = { doctrine: 'industrielle' as Doctrine, fog: true, blitz: false, storms: false, contested: false, res: 'normales', faction: 0, age: 1 };
 let ai: Ai | null = null, ai0: Ai | null = null, ais: Ai[] = [];
 // --- Enregistrement des ordres du joueur (sauvegarde par rejeu).
 let log: [number, Order][] = [], recording = false, level = 'normal', aiTurn = false;
@@ -139,7 +140,7 @@ const nextSpeed = (dir: number) => { if (online) return; speed = SPEEDS[Math.max
 document.getElementById('btn-pause')!.addEventListener('click', togglePause);
 document.getElementById('btn-speed')!.addEventListener('click', () => { speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]; paintSpeed(); });
 // --- Sauvegarde automatique (toutes les 20 s de jeu, et quand on quitte l'appli).
-const saveData = (): SaveGame => ({ v: 1, seed, size, kind, level, doctrine: opts.doctrine, fog: opts.fog, blitz: opts.blitz, storms: opts.storms, contested: opts.contested, ressources: opts.res, faction: opts.faction, players, tick: sim.tick, orders: log, at: Date.now() });
+const saveData = (): SaveGame => ({ v: 1, seed, size, kind, level, doctrine: opts.doctrine, fog: opts.fog, blitz: opts.blitz, storms: opts.storms, contested: opts.contested, ressources: opts.res, faction: opts.faction, age: opts.age, players, tick: sim.tick, orders: log, at: Date.now() });
 const save = () => {
   if (!recording || !started || sim.winner >= 0) return;
   store.set('sauvegarde', JSON.stringify(saveData()));
@@ -213,7 +214,7 @@ paintSound();
 /** Volume d'un son selon sa distance au point regardé par la caméra. */
 const near = (x: number, z: number) => Math.max(0, 1 - Math.hypot(x - cam.target.x, z - cam.target.z) / (cam.dist * 1.3 + 15));
 // Impact d'un projectile qui a volé (obus, roquette, missile) : explosion sonore à son arrivée.
-fx.onImpact = (x, z, size) => { const v = near(x, z); if (v > 0.05 && !audio.sfxVar("expl_veh", (0.25 + 0.3 * Math.min(1, size)) * v, 60)) audio.sfx(size > 0.6 ? "boom2" : "boom1", 0.4 * v, 60); };
+fx.onImpact = (x, z, size) => { const v = near(x, z); if (size < 0) { if (v > 0.05) { audio.sfxVar('bois', 0.5 * v, 60); audio.sfxVar('debris', 0.3 * v, 60); } return; } if (v > 0.05 && !audio.sfxVar("expl_veh", (0.25 + 0.3 * Math.min(1, size)) * v, 60)) audio.sfx(size > 0.6 ? "boom2" : "boom1", 0.4 * v, 60); };
 const say = (text: string) => {
   hud.toast(text);
   if (text.startsWith('Pas assez')) { audio.voice('lack'); audio.sfx('error', 0.4, 400); }
@@ -359,21 +360,29 @@ function frame(now: number) {
   for (const e of sim.events) {
     if (e.t === 'msg') { if (e.owner === me) say(e.text); }
     else if (e.t === 'ready') { if (e.owner === me) audio.voice('ready'); }
+    else if (e.t === 'age') { if (e.owner === me) { audio.sfx('age', 0.6); hud.toast('Ton peuple entre dans ' + (e.ere === 2 ? 'le ' : 'l\'') + GAME.eres[e.ere - 1].nom); } }
     else if (e.t === 'built') { if (sim.building(e.b)?.owner === me && sim.building(e.b)?.kind !== 'mur') audio.voice('built'); }
     else if (e.t === 'depleted') world.hideResource(e.node);
     else if (e.t === 'promo') { if (e.owner === me) { const u = sim.get(e.id); hud.toast(`${u ? UNITS[u.kind].nom : 'Unité'} promu : ${'★'.repeat(e.vet)}`); audio.sfx('ok', 0.5, 300); } }
     else if (e.t === 'storm') { world.stormTarget = e.on ? 1 : 0; document.getElementById('stormfx')!.classList.toggle('on', e.on); hud.toast(e.on ? 'Tempête de poussière : tourelles hors service' : 'La tempête se dissipe'); if (e.on) audio.sfx('shield', 0.5); }
     else if (e.t === 'shot' && e.melee) {
       // Corps à corps : pas de traçante, un choc au point d'impact.
-      const v = near(e.x0, e.z0), heavy = e.kind === 'marteleur' || e.kind === 'cogneur', y = map.heightAt(e.x1, e.z1) + (heavy ? 1.4 : 1.1);
+      const v = near(e.x0, e.z0), heavy = e.kind === 'marteleur' || e.kind === 'cogneur' || e.kind === 'belier', y = map.heightAt(e.x1, e.z1) + (heavy ? 1.4 : 1.1);
+      const old = !!e.kind && ['milicien', 'hachier', 'champion', 'cavalier', 'chevalier', 'belier'].includes(e.kind);
       const hx = e.x0 + (e.x1 - e.x0) * 0.8, hz = e.z0 + (e.z1 - e.z0) * 0.8;
-      fx.spark(hx, y, hz, heavy); audio.clang(0.45 * v, heavy); if (e.id !== undefined) units?.meleeHit(e.id);
+      fx.spark(hx, y, hz, heavy);
+      if (e.kind === 'belier') { audio.sfxVar('bois', 0.6 * v, 200); fx.dust(hx, y - 0.6, hz, 1); }
+      else if (old) { if (!audio.sfxVar('epee', 0.4 * v, 70)) audio.clang(0.45 * v, heavy); }
+      else audio.clang(0.45 * v, heavy); if (e.id !== undefined) units?.meleeHit(e.id);
       if (heavy && v > 0.6) cam.shake(0.08);
     }
     else if (e.t === 'shot') {
       // Chaque arme a son effet et son son : balles, obus, roquettes, salves de missiles, artillerie en cloche, lasers, plasma, flak.
       const v = near(e.x0, e.z0), my = buildings?.turretShot(e.x0, e.z0, e.x1, e.z1, !!e.air) ?? null;
-      const W = e.kind ? UNIT_WEAPON[e.kind] : e.bk ? TOWER_WEAPON[e.bk] : undefined, w = W?.w ?? (e.big ? 'canon' : 'fusil');
+      // Âges anciens : la tour de guet et le Centre-ville tirent des flèches.
+      const bOwner = e.bk ? sim.buildings.find((b) => Math.abs(b.x - e.x0) < 0.05 && Math.abs(b.z - e.z0) < 0.05)?.owner : undefined;
+      const oldTower = bOwner !== undefined && (sim.players[bOwner]?.ere ?? 3) <= 2;
+      const W = e.kind ? UNIT_WEAPON[e.kind] : e.bk ? (oldTower ? { w: 'fleche' as Weapon, y: e.bk === 'centre' ? 4 : undefined } : TOWER_WEAPON[e.bk]) : undefined, w = W?.w ?? (e.big ? 'canon' : 'fusil');
       const y1 = map.heightAt(e.x1, e.z1) + (e.air ? 4.6 : 1.0);
       // Le tir part du bout de l'arme (ou du canon) de l'unité qui tire, si on la voit.
       const mz = e.id !== undefined && !my ? units?.muzzle(e.id, e.x1, e.z1) ?? null : null;
@@ -387,7 +396,9 @@ function frame(now: number) {
       } else if (mz) fx.weapon(w, mz.x, mz.y, mz.z, e.x1, y1, e.z1, 0);
       else fx.weapon(w, e.x0, map.heightAt(e.x0, e.z0) + (my ?? W?.y ?? (e.from ? 4.6 : 1.3)), e.z0, e.x1, y1, e.z1, W?.twin ?? 0);
       const shotN = 1 + Math.abs(Math.round(e.x0 * 7 + e.z0 * 3)) % 3;
-      if (w === 'fusil') audio.sfx('shot' + shotN, 0.26 * v, 70);
+      if (w === 'fleche') audio.sfxVar('fleche', 0.3 * v, 50);
+      else if (w === 'pierre') audio.sfxVar('catapulte', 0.55 * v, 120);
+      else if (w === 'fusil') audio.sfx('shot' + shotN, 0.26 * v, 70);
       // Fusil à pompe : détonation grave et sèche, puis le « clac-clac » du rechargement.
       else if (w === 'pompe') { audio.sfx('shotbig', 0.4 * v, 90); audio.sfx('shot' + shotN, 0.3 * v, 0); setTimeout(() => audio.sfx('click', 0.22 * v, 0), 380); setTimeout(() => audio.sfx('click', 0.2 * v, 0), 520); }
       else if (w === 'mitrailleuse') { audio.sfx('shot' + shotN, 0.22 * v, 40); setTimeout(() => audio.sfx('shot' + (shotN % 3 + 1), 0.2 * v, 40), 140); }
@@ -440,7 +451,7 @@ function frame(now: number) {
       const won = e.winner === sim.players[me].team;
       if (!replay && !ai0 && !bench) {
         const P = sim.players[me], got: string[] = [];
-        if (P.ere >= 3) got.push('ere3');
+        if (P.ere >= 5) got.push('ere3');
         if ((sim.stats[me].tues ?? 0) >= 100) got.push('carnage');
         if (won) {
           if (scen) { if (challengeDone(scen.id)) got.push('defis'); }
@@ -490,6 +501,7 @@ function frame(now: number) {
   fx.barsEnd(); fx.update(dt, cam.camera.quaternion);
   if (fx.shake > 0) { cam.shake(fx.shake); fx.shake = 0; }
   if (ctrl && ctrl.selection.size) { let gone = false; for (const id of ctrl.selection) if (!sim.get(id)) { ctrl.selection.delete(id); gone = true; } if (gone) ctrl.select([...ctrl.selection]); }
+  world.setAge(sim.players[Math.max(0, me)]?.ere ?? 3, sim.tick < 3);
   world.update(dt, cam.target, cam.dist);
   world.renderer.render(world.scene, cam.camera);
   frames++; acc += dtMs;
@@ -541,6 +553,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   const saved = readSave();
   /** Options choisies avant la partie : doctrine du joueur, brouillard, mode Blitz. */
   const applyOpts = (spect: boolean) => {
+    if (opts.age !== sim.startAge) sim.setStartAge(opts.age);
     sim.setFaction(opts.faction);
     if (!spect) sim.players[0].doctrine = opts.doctrine;
     if (opts.blitz) sim.blitzEnd = 6000;
@@ -555,7 +568,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   };
   const start = (lv: string, mode: string, o: Record<string, string>) => {
     level = lv;
-    opts = { doctrine: (o.doctrine || 'industrielle') as Doctrine, fog: o.brouillard !== 'non', blitz: o.duree === 'blitz', storms: o.evenements === 'tempetes', contested: o.centre === 'dispute', res: o.ressources || 'normales', faction: Math.max(0, Math.min(3, +(o.faction ?? 0) || 0)) };
+    opts = { doctrine: (o.doctrine || 'industrielle') as Doctrine, fog: o.brouillard !== 'non', blitz: o.duree === 'blitz', storms: o.evenements === 'tempetes', contested: o.centre === 'dispute', res: o.ressources || 'normales', faction: Math.max(0, Math.min(3, +(o.faction ?? 0) || 0)), age: o.epoque === 'moderne' ? 3 : 1 };
     store.set('options', JSON.stringify(o));
     applyOpts(mode === 'spectateur');
     store.set('niveau', lv); store.set('mode', mode);
@@ -575,7 +588,8 @@ world.load((f) => hud.setLoading(f)).then(() => {
     if (cfg.host && store.get('online-go') === cfg.nonce && (!hostSave || hostSave.nonce !== cfg.nonce)) { store.del('online'); store.del('online-go'); relaunch(); return; }
     if (!cfg.host || hostSave?.nonce !== cfg.nonce) hostSave = null;
     document.body.classList.add('online');
-    opts = { doctrine: 'industrielle', fog: cfg.fog, blitz: false, storms: false, contested: false, res: cfg.res, faction: cfg.sides[cfg.me]?.faction ?? 0 };
+    opts = { doctrine: 'industrielle', fog: cfg.fog, blitz: false, storms: false, contested: false, res: cfg.res, faction: cfg.sides[cfg.me]?.faction ?? 0, age: (cfg as { age?: number }).age ?? 1 };
+    sim.setStartAge(opts.age);
     cfg.sides.forEach((x, i) => { const P = sim.players[i]; if (P) { P.faction = x.faction; P.doctrine = 'industrielle'; } });
     sim.setTeams(cfg.sides.map((x) => x.team));
     if (cfg.res === 'riches') sim.setRich();
@@ -663,7 +677,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   // --- Banc d'essai des animations : chaque unité face à une cible, sans brouillard ni IA.
   if (store.get('scenario') === 'banc' && seed === SCEN_MAP.seed && size === SCEN_MAP.size && kind === SCEN_MAP.kind && players === 'duel') {
     store.del('scenario');
-    opts = { doctrine: 'industrielle', fog: false, blitz: false, storms: false, contested: false, res: 'normales', faction: 0 };
+    opts = { doctrine: 'industrielle', fog: false, blitz: false, storms: false, contested: false, res: 'normales', faction: 0, age: 3 };
     applyOpts(false);
     ais = []; started = true; recording = false;
     hud.setLevel('#Banc d\'essai');
@@ -687,7 +701,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
     store.del('scenario');
     let o: Record<string, string> = {}; try { o = JSON.parse(store.get('options') || '{}'); } catch { /* défaut */ }
     scen = new Scenario(sim, sid);
-    opts = { doctrine: (o.doctrine || 'industrielle') as Doctrine, fog: sid === 'tuto' || sid === 'course', blitz: false, storms: false, contested: false, res: 'normales', faction: Math.max(0, Math.min(3, +(o.faction ?? 0) || 0)) };
+    opts = { doctrine: (o.doctrine || 'industrielle') as Doctrine, fog: sid === 'tuto' || sid === 'course', blitz: false, storms: false, contested: false, res: 'normales', faction: Math.max(0, Math.min(3, +(o.faction ?? 0) || 0)), age: 3 };
     applyOpts(false);
     scen.setup();
     const ia = scen.info.ia; ais = ia ? [new Ai(sim, 1, ia)] : []; ai = ais[0] ?? null;
@@ -707,7 +721,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   if (store.get('revoir') === '1' && last && last.seed === seed && last.size === size && last.kind === kind && (last.players ?? 'duel') === players) {
     store.del('revoir');
     level = last.level;
-    opts = { doctrine: (last.doctrine || '') as Doctrine, fog: false, blitz: !!last.blitz, storms: !!last.storms, contested: !!last.contested, res: last.ressources || 'normales', faction: last.faction ?? 0 };
+    opts = { doctrine: (last.doctrine || '') as Doctrine, fog: false, blitz: !!last.blitz, storms: !!last.storms, contested: !!last.contested, res: last.ressources || 'normales', faction: last.faction ?? 0, age: last.age ?? 3 };
     if (players === 'equipes') sim.setTeams([0, 1, 0, 1]);
     applyOpts(false);
     ais = sim.sides.slice(1).map((o) => new Ai(sim, o, last!.level as Level)); ai = ais[0];
@@ -729,7 +743,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   if (store.get('reprendre') === '1' && saved && saved.seed === seed && saved.size === size && saved.kind === kind && (saved.players ?? 'duel') === players) {
     store.del('reprendre');
     const lv = saved.level; level = lv;
-    opts = { doctrine: (saved.doctrine || '') as Doctrine, fog: !!saved.fog, blitz: !!saved.blitz, storms: !!saved.storms, contested: !!saved.contested, res: saved.ressources || 'normales', faction: saved.faction ?? 0 };
+    opts = { doctrine: (saved.doctrine || '') as Doctrine, fog: !!saved.fog, blitz: !!saved.blitz, storms: !!saved.storms, contested: !!saved.contested, res: saved.ressources || 'normales', faction: saved.faction ?? 0, age: saved.age ?? 3 };
     if (players === 'equipes') sim.setTeams([0, 1, 0, 1]);
     applyOpts(false);
     ais = sim.sides.slice(1).map((o) => new Ai(sim, o, lv as Level)); ai = ais[0]; hud.setLevel(lv);
@@ -775,7 +789,7 @@ world.load((f) => hud.setLoading(f)).then(() => {
   document.getElementById('btn-online')!.addEventListener('click', () => { audio.unlock(); audio.sfx('click'); lobby.open(); });
   const salon = /^#salon-([A-Za-z0-9]{4,8})$/.exec(location.hash);
   if (salon) { history.replaceState(null, '', location.href.split('#')[0]); lobby.open(salon[1].toUpperCase()); }
-  hud.menu({ level: store.get('niveau') || 'normal', size, kind, seed, players, mode: store.get('mode') || 'joueur', opts: (() => { try { return { doctrine: 'industrielle', brouillard: 'oui', duree: 'normale', evenements: 'non', centre: 'calme', ressources: 'normales', faction: '0', ...JSON.parse(store.get('options') || '{}') }; } catch { return { doctrine: 'industrielle', brouillard: 'oui', duree: 'normale', evenements: 'non', centre: 'calme', ressources: 'normales', faction: '0' }; } })(),
+  hud.menu({ level: store.get('niveau') || 'normal', size, kind, seed, players, mode: store.get('mode') || 'joueur', opts: (() => { try { return { doctrine: 'industrielle', brouillard: 'oui', duree: 'normale', evenements: 'non', centre: 'calme', ressources: 'normales', faction: '0', epoque: 'antique', ...JSON.parse(store.get('options') || '{}') }; } catch { return { doctrine: 'industrielle', brouillard: 'oui', duree: 'normale', evenements: 'non', centre: 'calme', ressources: 'normales', faction: '0', epoque: 'antique' }; } })(),
     resume: (() => { const all = SLOTS.map(readSlot).filter((d): d is SaveGame => !!d); return !all.length ? null : all.length > 1 ? `Reprendre une partie (${all.length})` : `Reprendre · ${Math.floor(all[0].tick / 600)} min · ${K[all[0].kind] ?? ''}`; })(),
     replay: (() => { const r = replays(); return !r.length ? null : r.length > 1 ? `Rediffusions (${r.length})` : `Revoir la dernière partie · ${Math.floor(r[0].tick / 600)} min`; })() }, {
     replay: () => { const r = replays(); if (r.length <= 1) { watchLast(r[0]); return; } picker('Rediffusions', r.map((d) => ({ label: `${d.result ?? 'Partie'} · ${Math.floor(d.tick / 600)} min`, sub: describe(d), act: () => watchLast(d) }))); },

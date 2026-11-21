@@ -127,7 +127,7 @@ export class Controller {
 
   startPlacing(kind: string) {
     if (!this.workers().length) return;
-    if (BUILDINGS[kind].ere > this.sim.players[this.player].ere) { this.onMsg?.('Disponible à l\'ère ' + BUILDINGS[kind].ere); return; }
+    if (BUILDINGS[kind].ere > this.sim.players[this.player].ere) { this.onMsg?.('Disponible à l\'âge ' + BUILDINGS[kind].ere); return; }
     const lack = this.sim.canPay(this.player, this.sim.buildCost(this.player, kind));
     if (lack) { this.onMsg?.('Pas assez de ' + lack); return; }
     this.placing = { kind, start: null }; this.ghost = null; this.onChange?.();

@@ -22,7 +22,7 @@ export function showEnd(el: HTMLElement, sim: Sim, info: EndInfo) {
   const hist: Snapshot[] = [...sim.history.filter((h) => h.t < sim.tick), sim.snapshot()];
   if (hist.length < 2) hist.unshift({ ...hist[0], t: 0 });
   const parts = sim.players.map((_, o) => sim.scoreParts(o));
-  const ere2 = (o: number) => S[o].ereT[1] ?? -1;
+  const ere2 = (o: number) => S[o].ereT[sim.startAge] ?? -1;
 
   const tabs: Record<string, () => string> = {
     'Score': () => table([
@@ -52,9 +52,9 @@ export function showEnd(el: HTMLElement, sim: Sim, info: EndInfo) {
       { label: 'Ouvriers produits', get: (o) => S[o].ouvriersProduits },
     ]),
     'Technologie': () => table([
-      { label: 'Ère atteinte', get: (o) => P[o].ere, show: (o) => `${P[o].ere} · ${GAME.eres[P[o].ere - 1].nom}` },
-      { label: 'Arrivée en ère 2', get: (o) => ere2(o) < 0 ? 1e9 : ere2(o), low: true, show: (o) => ere2(o) < 0 ? '—' : clock(ere2(o)) },
-      { label: 'Arrivée en ère 3', get: (o) => (S[o].ereT[2] ?? -1) < 0 ? 1e9 : S[o].ereT[2], low: true, show: (o) => (S[o].ereT[2] ?? -1) < 0 ? '—' : clock(S[o].ereT[2]) },
+      { label: 'Âge atteint', get: (o) => P[o].ere, show: (o) => `${P[o].ere} · ${GAME.eres[P[o].ere - 1].nom}` },
+      { label: 'Premier passage d\'âge', get: (o) => ere2(o) < 0 ? 1e9 : ere2(o), low: true, show: (o) => ere2(o) < 0 ? '—' : clock(ere2(o)) },
+      { label: 'Arrivée à l\'âge galactique', get: (o) => (S[o].ereT[4] ?? -1) < 0 ? 1e9 : S[o].ereT[4], low: true, show: (o) => (S[o].ereT[4] ?? -1) < 0 ? '—' : clock(S[o].ereT[4]) },
       { label: 'Recherches', get: (o) => S[o].recherches },
       { label: 'Doctrine', get: () => 0, show: (o) => DOCTRINES[P[o].doctrine] ?? '—' },
     ]) + `<div class="st-list">${SIDES.map((o) => `<p><b style="color:${COL[o]}">${info.names[o]}</b> : ${[...P[o].research].map((k) => RESEARCH[k]?.nom ?? k).join(', ') || 'aucune recherche'}</p>`).join('')}</div>`,
@@ -91,7 +91,7 @@ export function showEnd(el: HTMLElement, sim: Sim, info: EndInfo) {
   }
   function moments(): string {
     const ev: [number, string][] = [];
-    for (const o of SIDES) for (let e = 1; e < S[o].ereT.length; e++) if (S[o].ereT[e] > 0) ev.push([S[o].ereT[e], `<b style="color:${COL[o]}">${info.names[o]}</b> passe à l'ère ${e + 1} (${GAME.eres[e].nom})`]);
+    for (const o of SIDES) for (let e = 1; e < S[o].ereT.length; e++) if (S[o].ereT[e] > 0) ev.push([S[o].ereT[e], `<b style="color:${COL[o]}">${info.names[o]}</b> atteint : ${GAME.eres[e].nom}`]);
     if (sim.firstFight >= 0) ev.push([sim.firstFight, 'Premier combat']);
     ev.push([sim.tick, info.blitz ? 'Fin du Blitz : victoire aux points' : info.wonder ? 'L\'Ascenseur orbital a tenu 5 minutes' : 'Chute d\'un Centre de commandement']);
     ev.sort((a, b) => a[0] - b[0]);
@@ -116,7 +116,7 @@ export function showEnd(el: HTMLElement, sim: Sim, info: EndInfo) {
     for (let t = 0; t <= tMax; t += step) { g.textAlign = x(t) > W - 40 ? 'right' : 'center'; g.fillText(Math.round(t / 600) + ' min', Math.min(x(t), W - R), H - 6); }
     // repères : passage en ère 2 et premier combat
     const mark = (t: number, c: string, label: string) => { g.save(); g.setLineDash([4, 4]); g.strokeStyle = c; g.beginPath(); g.moveTo(x(t), T); g.lineTo(x(t), H - B); g.stroke(); g.restore(); g.fillStyle = c; g.textAlign = 'left'; g.fillText(label, x(t) + 3, T + 10); };
-    for (const o of SIDES) if (ere2(o) > 0) mark(ere2(o), COL[o], 'Ère 2');
+    for (const o of SIDES) if (ere2(o) > 0) mark(ere2(o), COL[o], GAME.eres[sim.startAge]?.nom ?? '');
     if (sim.firstFight > 0) mark(sim.firstFight, '#c9b29c', '⚔');
     for (const o of SIDES) {
       g.beginPath(); hist.forEach((h, i) => { const px = x(h.t), py = y(vals[i][o]); if (i) g.lineTo(px, py); else g.moveTo(px, py); });

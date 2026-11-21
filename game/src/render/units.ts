@@ -8,6 +8,8 @@ import type { Effects } from './effects';
 import { UNITS } from '../data/rules';
 
 /** Arès (joueur) : rouge-ambre. Boréale : bleu glacier. */
+/** Niveau de l'eau aux âges anciens (le vide intersidéral est alors une mer). */
+export const WATER_Y = -1.3;
 export const TEAM_COLORS = [0xff6a2e, 0x38d0ff, 0x6fdc5a, 0xc07bff, 0xb9b2a6];
 /** Couleur d'un camp : Arès, Boréale, Ligue Australe, Syndicat Solaris ; le camp neutre (sentinelles) est gris. */
 export function colorIndex(sim: Sim, owner: number): number { return sim.players[owner]?.neutral ? 4 : owner % 4; }
@@ -35,8 +37,32 @@ type Strike = 'estoc' | 'taille' | 'masse';
 interface Look { /** Arme de corps à corps (modèle) tenue en main, longueur rapportée au couteau d'origine. */ wpn?: string; wlen?: number; mounts?: Mount[]; strike?: Strike; /** Robot araignée : pattes animées en code. */ legs?: boolean;
   /** Modèle statique affiché un par unité (armes montées dessus). */ custom?: boolean;
   /** Arme posée à part dans le fichier, remise dans la main (os `bone`). */ prop?: { name: string; bone: string; len: number };
-  /** Véhicule articulé : roues qui tournent, tourelle qui vise. `alt` : modèle de la faction Boréale. */ rig?: boolean; alt?: string; model: string; height?: number; footprint?: number; idle?: string; run?: string; work?: string; /** L'animation `work` sert au tir. */ shoot?: boolean; /** Tir en courant (cible en vue pendant un déplacement). */ runShoot?: string; /** Tir à l'arrêt figé (pose de visée stable, sans balancement). */ workStill?: number; /** Canon relevé (artillerie), en radians. */ barrelUp?: number; /** Rotation du modèle de la faction Boréale. */ altYaw?: number; /** Teinte appliquée au modèle (robots tout blancs). */ paint?: number; /** Arme tenue à deux mains en visant (main gauche ramenée sous le canon). */ twoHands?: boolean; /** Arme penchée dans l'animation d'origine : remise à l'horizontale en visant. */ level?: boolean; yaw?: number; hover?: number; runSpeed?: number; /** Personnages « Toon » : arme laissée visible (les autres sont cachées). */ weapon?: string }
+  /** Véhicule articulé : roues qui tournent, tourelle qui vise. `alt` : modèle de la faction Boréale. */ rig?: boolean; alt?: string; model: string; height?: number; footprint?: number; idle?: string; run?: string; work?: string; /** L'animation `work` sert au tir. */ shoot?: boolean; /** Tir en courant (cible en vue pendant un déplacement). */ runShoot?: string; /** Tir à l'arrêt figé (pose de visée stable, sans balancement). */ workStill?: number; /** Canon relevé (artillerie), en radians. */ barrelUp?: number; /** Rotation du modèle de la faction Boréale. */ altYaw?: number; /** Teinte appliquée au modèle (robots tout blancs). */ paint?: number; /** Arme tenue à deux mains en visant (main gauche ramenée sous le canon). */ twoHands?: boolean; /** Arme penchée dans l'animation d'origine : remise à l'horizontale en visant. */ level?: boolean; yaw?: number; hover?: number; runSpeed?: number; /** Personnages « Toon » : arme laissée visible (les autres sont cachées). */ weapon?: string;
+  /** Personnages KayKit (âges anciens) : accessoires gardés (les autres sont cachés), pièces à cacher. */ kk?: string[]; hide?: string[];
+  /** Cavalerie : cavalier KayKit assis sur le cheval (os du dos suivi), et son geste d'attaque. */ rider?: { model: string; kk: string[]; attack: string; seat: number };
+  /** Bateau (âges anciens) : flotte sur l'eau au lieu de voler. */ boat?: boolean; /** Taille mesurée sur la pose du squelette (cheval). */ precise?: boolean;
+  /** Engin de siège : coup de bélier ou détente de catapulte joués en code. */ siege?: 'ram' | 'throw' }
+/** Accessoires des personnages KayKit : tous cachés sauf ceux que l'unité garde. */
+const KK_EXTRAS = ['1H_Sword_Offhand', 'Badge_Shield', 'Rectangle_Shield', 'Round_Shield', 'Spike_Shield', '1H_Sword', '2H_Sword', '1H_Axe_Offhand', 'Barbarian_Round_Shield', '1H_Axe', '2H_Axe', 'Mug',
+  'Knife_Offhand', '1H_Crossbow', '2H_Crossbow', 'Knife', 'Throwable', 'Spellbook', 'Spellbook_open', '1H_Wand', '2H_Staff'];
+const KK = (model: string, keep: string[], work: string, extra: Partial<Look> = {}): Look => ({ model: `kk/${model}.json`, height: 2.05, idle: 'Idle', run: 'Running_A', work, shoot: true, runSpeed: 0.95, kk: keep, weapon: keep[0], ...extra });
+const HORSE = 'anim/Horse.json';
+const CAV = (rider: string, keep: string[], attack: string): Look => ({ model: HORSE, height: 2.3, precise: true, idle: 'Armature|Idle', run: 'Armature|Run', work: 'Armature|Idle', shoot: true, runSpeed: 1.25, rider: { model: `kk/${rider}.json`, kk: keep, attack, seat: 0.62 } });
+/** Aspect aux âges anciens des unités qui traversent toutes les époques. */
+const OLD_LOOKS: Partial<Record<UnitKind, Look>> = {
+  ouvrier: KK('Barbarian', ['1H_Axe'], '1H_Melee_Attack_Chop', { shoot: false, hide: ['Barbarian_Hat'], weapon: undefined }),
+  navette: { model: 'boat/viking.json', footprint: 5.4, custom: true, boat: true, yaw: Math.PI / 2 },
+};
 const LOOKS: Record<UnitKind, Look> = {
+  milicien:  KK('Knight', ['1H_Sword', 'Round_Shield'], '1H_Melee_Attack_Chop', { hide: ['Knight_Helmet'] }),
+  hachier:   KK('Barbarian', ['2H_Axe'], '2H_Melee_Attack_Chop', { idle: '2H_Melee_Idle' }),
+  champion:  KK('Knight', ['2H_Sword'], '2H_Melee_Attack_Slice', { idle: '2H_Melee_Idle', height: 2.2 }),
+  archer:    KK('Rogue_Hooded', ['1H_Crossbow'], '1H_Ranged_Shoot'),
+  arbaletrier: KK('Rogue', ['2H_Crossbow'], '2H_Ranged_Shoot', { height: 2.15 }),
+  cavalier:  CAV('Rogue_Hooded', ['Knife'], '1H_Melee_Attack_Stab'),
+  chevalier: CAV('Knight', ['1H_Sword', 'Badge_Shield'], '1H_Melee_Attack_Chop'),
+  belier:    { model: 'siege/siege-ram.json', footprint: 3.3, custom: true, siege: 'ram', yaw: Math.PI },
+  catapulte: { model: 'siege/siege-catapult.json', footprint: 3.1, custom: true, siege: 'throw', yaw: Math.PI },
   ouvrier:   { model: 'quat/Astronaut_FinnTheFrog.json', height: 2.1, idle: 'Idle', run: 'Run', work: 'Idle', runSpeed: 1.1 },
   fantassin: { model: 'quat/Astronaut_RaeTheRedPanda.json', height: 2.3, idle: 'Idle_Gun', run: 'Run_Gun', work: 'Run_Gun_Shoot+Idle_Gun', runShoot: 'Run_Gun_Shoot', shoot: true, runSpeed: 1.1 },
   eclaireur: { model: 'hoverbike.json', footprint: 2.6, hover: 0.55 },
@@ -77,7 +103,7 @@ const LOOKS: Record<UnitKind, Look> = {
   strikerAssaut: STRIKER('White', [ARM('canon', 'R'), ARM('laser', 'L'), BACK('srm', 'R')]),
 };
 const WEAPONS = ['AK', 'GrenadeLauncher', 'Knife_1', 'Knife_2', 'Pistol', 'Revolver', 'Revolver_Small', 'RocketLauncher', 'ShortCannon', 'Shotgun', 'Shovel', 'SMG', 'Sniper', 'Sniper_2'];
-export const UNIT_MODELS = [...new Set(Object.values(LOOKS).flatMap((l) => [l.model, ...(l.alt ? [l.alt] : []), ...(l.wpn ? [l.wpn] : []), ...(l.mounts ?? []).map((m) => m.f)]))];
+export const UNIT_MODELS = [...new Set([...Object.values(LOOKS), ...Object.values(OLD_LOOKS)].flatMap((l) => [l.model, ...(l.alt ? [l.alt] : []), ...(l.wpn ? [l.wpn] : []), ...(l.rider ? [l.rider.model] : []), ...(l.mounts ?? []).map((m) => m.f)]))];
 
 const AX = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
 const longAxis = (v: THREE.Vector3) => (v.x >= v.y && v.x >= v.z ? 0 : v.y >= v.z ? 1 : 2);
@@ -167,6 +193,8 @@ interface View {
   guns?: { o: THREE.Object3D; tag: string }[]; gunTurn?: number; /** Rotation propre du modèle chargé (modèles tournés à l'envers). */ yaw?: number;
   /** Recul procédural après un tir (s). */ kick?: number;
   /** Arme à remettre à l'horizontale : nœud, pose de repos, axe long local. */ lev?: { o: THREE.Object3D; q: THREE.Quaternion; p: THREE.Vector3; ax: THREE.Vector3 };
+  /** Cavalerie : cavalier, os du dos du cheval et sa hauteur au repos, animations du cavalier. */ ride?: { body: THREE.Group; bone: THREE.Object3D; y0: number; seat: number; mixer: THREE.AnimationMixer; sit: THREE.AnimationAction; hit: THREE.AnimationAction; on: boolean };
+  /** Engin de siège : pièce mobile et phase du geste. */ siegeT?: number;
   /** Bras gauche pour tenir l'arme à deux mains. */ arms?: { upL: THREE.Object3D; loL: THREE.Object3D; hL: THREE.Object3D; hR: THREE.Object3D };
 }
 
@@ -234,6 +262,7 @@ function swingAngle(t: number): number {
 /** Vue stratégique : catégorie d'icône de chaque unité. */
 type IconCat = 'eco' | 'inf' | 'veh' | 'air';
 const ICON_CAT: Record<UnitKind, IconCat> = { ouvrier: 'eco', ingenieur: 'eco', fantassin: 'inf', antiblindage: 'inf', eclaireur: 'veh', blinde: 'veh', artillerie: 'veh', drone: 'air', intercepteur: 'air', navette: 'air', cuirasse: 'air',
+  milicien: 'inf', hachier: 'inf', champion: 'inf', archer: 'inf', arbaletrier: 'inf', cavalier: 'veh', chevalier: 'veh', belier: 'veh', catapulte: 'veh',
   tireur: 'inf', grenadier: 'inf', exo: 'inf', garde: 'inf', commando: 'inf', vigile: 'inf', sam: 'veh', chasseurChars: 'veh', avc: 'veh', huit: 'veh', canonAA: 'veh', challenger: 'air', spitfire: 'air', zenith: 'air', pancake: 'air', executioner: 'air', imperial: 'air',
   lame: 'inf', marteleur: 'inf', sabreur: 'inf', aether: 'inf', araignee: 'veh', araigneeCanon: 'veh', cogneur: 'veh', strikerLaser: 'veh', strikerMissiles: 'veh', strikerAssaut: 'veh' };
 /** Pastille ronde aux couleurs du camp avec un symbole blanc : pioche, fantassin, char, avion. */
@@ -267,6 +296,26 @@ const flat = (inner: number, outer: number, color: number, opacity: number, offs
   m.frustumCulled = false; m.count = 0;
   return m;
 };
+
+const capeMats = new Map<number, THREE.Material>();
+/** Cape d'un personnage KayKit teintée aux couleurs du camp (le reste garde sa texture). */
+function kkCape(body: THREE.Object3D, color: number) {
+  body.traverse((o) => {
+    const m = o as THREE.Mesh; if (!m.isMesh || !/Cape/.test(o.name)) return;
+    let mat = capeMats.get(color);
+    if (!mat) { const c = (m.material as THREE.MeshStandardMaterial).clone(); c.color = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.15); capeMats.set(color, mat = c); }
+    m.material = mat;
+  });
+}
+/** Garde du clip `base` les os du bas du corps et prend ceux du haut dans `top` (cavalier qui frappe sans se lever). */
+const RIDER_TOP = /^(spine|chest|upperarm|lowerarm|wrist|hand|handslot|head|neck|elbowIK|handIK)/i;
+function riderMix(clips: THREE.AnimationClip[], top: string, base: string): THREE.AnimationClip {
+  const key = 'rider|' + top + '+' + base, hit = MIXED.get(key); if (hit) return hit;
+  const A = clips.find((c) => c.name === top) ?? clips[0], B = clips.find((c) => c.name === base) ?? clips[0];
+  const bone = (t: THREE.KeyframeTrack) => t.name.split('.')[0];
+  const clip = new THREE.AnimationClip(key, A.duration, [...B.tracks.filter((t) => !RIDER_TOP.test(bone(t))).map((t) => t.clone()), ...A.tracks.filter((t) => RIDER_TOP.test(bone(t))).map((t) => t.clone())]);
+  MIXED.set(key, clip); return clip;
+}
 
 export class UnitViews {
   /** Camp du joueur sur cet appareil (parties en ligne). */
@@ -325,8 +374,10 @@ export class UnitViews {
     }
   }
 
+  /** Aspect d'une unité : celui de son époque pour les unités qui traversent les âges (ouvrier, navette). */
+  private lookFor(u: Unit): Look { return (this.sim.players[u.owner]?.ere ?? 3) <= 2 && OLD_LOOKS[u.kind] ? OLD_LOOKS[u.kind]! : LOOKS[u.kind]; }
   private create(u: Unit): View {
-    const look = LOOKS[u.kind];
+    const look = this.lookFor(u);
     const v: View = { pos: new THREE.Vector3(u.x, this.sim.map.heightAt(u.x, u.z), u.z), heading: u.heading, look, acts: [], state: 0 };
     if (look.rig) {
       // Véhicule articulé : un modèle par unité, roues et tourelle animées à la main.
@@ -348,8 +399,14 @@ export class UnitViews {
       v.aim = 0; v.lx = u.x; v.lz = u.z;
       this.scene.add(body);
     } else if (look.idle) {
-      const body = v.body = spawn(look.model, { height: look.height, footprint: look.footprint });
-      if (look.weapon) {
+      const body = v.body = spawn(look.model, { height: look.height, footprint: look.footprint, precise: look.precise });
+      if (look.kk) {
+        // Personnage KayKit : on ne garde que ses accessoires ; sa cape prend la couleur du camp.
+        for (const w of KK_EXTRAS) { const o = body.getObjectByName(w); if (o) o.visible = look.kk.includes(w); }
+        for (const w of look.hide ?? []) { const o = body.getObjectByName(w); if (o) o.visible = false; }
+        kkCape(body, TEAM_COLORS[colorIndex(this.sim, u.owner)]);
+      }
+      if (look.weapon || look.kk) {
         for (const w of WEAPONS) { const o = body.getObjectByName(w); if (o) o.visible = w === look.weapon; }
         // Les armes cachées faussaient le centrage du modèle (anneau de sélection décalé) : on recentre sur ce qui est visible.
         body.updateMatrixWorld(true);
@@ -383,6 +440,7 @@ export class UnitViews {
         if (look.mounts) v.mixer.update(0);
       }
       this.equip(body, look, v, u.kind);
+      if (look.rider) this.mountRider(v, body, look, u);
       this.scene.add(body);
     } else if (look.custom) {
       const body = v.body = spawn(look.model, { height: look.height, footprint: look.footprint });
@@ -393,6 +451,30 @@ export class UnitViews {
     return v;
   }
 
+  /** Cavalerie : le cavalier s'assoit sur le dos du cheval et suit ses mouvements. */
+  private mountRider(v: View, horse: THREE.Group, look: Look, u: Unit) {
+    const R = look.rider!, body = spawn(R.model, { height: 1.75 });
+    for (const w of KK_EXTRAS) { const o = body.getObjectByName(w); if (o) o.visible = R.kk.includes(w); }
+    kkCape(body, TEAM_COLORS[colorIndex(this.sim, u.owner)]);
+    horse.updateMatrixWorld(true);
+    const bone = horse.getObjectByName('Torso') ?? horse.getObjectByName('Back') ?? horse;
+    const wp = bone.getWorldPosition(new THREE.Vector3()), lp = horse.worldToLocal(wp.clone());
+    const seat = (horse.userData.height as number ?? 2.3) * R.seat;
+    body.position.set(0, seat, lp.z * 0.15);
+    horse.add(body);
+    const clips = animations(R.model), mixer = new THREE.AnimationMixer(body);
+    const sit = mixer.clipAction(clips.find((c) => c.name === 'Sit_Chair_Idle') ?? clips[0]);
+    const hit = mixer.clipAction(riderMix(clips, R.attack, 'Sit_Chair_Idle'));
+    sit.play(); mixer.update(0);
+    // La pose assise met les hanches en arrière : on recale le bassin au-dessus du dos.
+    body.updateMatrixWorld(true);
+    const hips = body.getObjectByName('hips');
+    if (hips) { const hp = horse.worldToLocal(hips.getWorldPosition(new THREE.Vector3())); body.position.z -= hp.z + 0.3; body.position.y -= hp.y - seat; }
+    v.ride = { body, bone, y0: lp.y, seat: body.position.y, mixer, sit, hit, on: false };
+    const guns: { o: THREE.Object3D; tag: string }[] = [];
+    body.traverse((o) => { if (o.name === R.kk[0]) guns.push({ o, tag: 'arme' }); });
+    if (guns.length) v.guns = guns;
+  }
   /** Armes rapportées : arme de corps à corps, armes de mech, épée remise en main. */
   private equip(body: THREE.Group, look: Look, v?: View, kind?: UnitKind) {
     let held: THREE.Group | undefined;
@@ -667,6 +749,9 @@ export class UnitViews {
     const iconK = this.camera ? Math.min(1, Math.max(0, (this.zoom - 70) / 25)) : 0, iconS = this.zoom * 0.042, nIcon = new Map<string, number>();
     const camQ = this.camera?.quaternion;
     for (const u of this.sim.units) {
+      // Ouvrier, navette : leur tenue change avec l'âge de leur camp (villageois → astronaute, barque → navette).
+      const v0 = this.views.get(u.id);
+      if (v0 && OLD_LOOKS[u.kind] && v0.look !== this.lookFor(u)) { if (v0.body) this.scene.remove(v0.body); this.views.delete(u.id); }
       const v = this.views.get(u.id) ?? this.create(u);
       const x = u.px + (u.x - u.px) * alpha, z = u.pz + (u.z - u.pz) * alpha;
       v.pos.y += (map.heightAt(x, z) - v.pos.y) * Math.min(1, dt * 12);
@@ -719,6 +804,11 @@ export class UnitViews {
             v.turret.quaternion.copy(v.turretQ!).multiply(this.q.setFromAxisAngle(this.up, v.aim!));
           }
         }
+        if (v.look.boat) {
+          // Barque : posée sur l'eau (ou tirée sur la grève), légère houle.
+          v.body.position.y = Math.max(v.pos.y, WATER_Y) + Math.sin(this.time * 1.6 + u.id) * 0.08;
+          v.body.rotation.z = Math.sin(this.time * 1.1 + u.id * 2) * 0.035;
+        }
         if (v.tool) v.tool.visible = u.working;
         // 0 repos, 1 déplacement, 2 tir (ou travail) sur place, 3 tir en se déplaçant (cible en vue).
         const aiming = !!v.look.shoot && (u.tu >= 0 || u.tb >= 0);
@@ -735,6 +825,23 @@ export class UnitViews {
           this.carry.setMatrixAt(nCarry, m); this.carry.setColorAt(nCarry++, CARRY_COLORS[u.carryKind] ?? CARRY_COLORS.eau);
         }
         v.mixer?.update(dt);
+        if (v.ride) {
+          // Cavalier : suit le dos du cheval ; frappe du haut du corps pendant l'attaque.
+          const R = v.ride, attack = st === 2 || st === 3;
+          if (attack !== R.on) { R.on = attack; const [a, b] = attack ? [R.sit, R.hit] : [R.hit, R.sit]; b.reset().play(); a.crossFadeTo(b, 0.15, false); }
+          v.body.updateMatrixWorld(true);
+          const by = v.body.worldToLocal(R.bone.getWorldPosition(this.mz)).y;
+          R.body.position.y = R.seat + (by - R.y0);
+          R.mixer.update(dt);
+        }
+        if (v.look.siege && v.body.children[0]) {
+          // Bélier : coups de boutoir ; catapulte : la machine se cabre à chaque tir.
+          const inner = v.body.children[0], work = st === 2;
+          v.siegeT = work ? ((v.siegeT ?? 0) + dt) % UNITS[u.kind].cadence : 0;
+          const k = v.siegeT / UNITS[u.kind].cadence;
+          if (v.look.siege === 'ram') inner.position.z = (inner.userData.z0 ??= inner.position.z) + (work ? Math.sin(Math.min(1, k * 2.5) * Math.PI) * 0.45 : 0);
+          else inner.rotation.x = work ? -Math.sin(Math.min(1, k * 4) * Math.PI) * 0.08 : 0;
+        }
         // Recul : le tireur encaisse le coup de feu (léger basculement vers l'arrière, vite résorbé).
         if (v.kick && v.kick > 0) { v.kick = Math.max(0, v.kick - dt); v.body.rotation.x = -Math.sin((v.kick / 0.16) * Math.PI) * 0.07; } else if (v.body.rotation.x) v.body.rotation.x = 0;
         if (v.strike) this.strikePose(v, st === 2, dt);

@@ -26,7 +26,7 @@ for (const size of ['petite', 'moyenne'] as const) {
   // Les ouvriers peuvent y miner et y bâtir un dépôt.
   const node = sim.nodes.filter((n) => n.amount > 0).sort((a, b) => Math.hypot(a.x - isl.x, a.z - isl.z) - Math.hypot(b.x - isl.x, b.z - isl.z))[0];
   check('l\'île porte des ressources', Math.hypot(node.x - isl.x, node.z - isl.z) < 14, `${node.kind} à ${Math.hypot(node.x - isl.x, node.z - isl.z).toFixed(0)} m du centre`);
-  sim.players[0].minerai = 999; sim.players[0].ere = 2;
+  sim.players[0].minerai = 999; sim.players[0].ere = 4;
   const depot = node.kind === 'solarite' ? 'raffinerie' : 'depotMinier';
   let spot: { x: number; z: number } | null = null;
   for (let a = 0; a < 40 && !spot; a++) { const x = isl.x + Math.cos(a) * (2 + a * 0.2), z = isl.z + Math.sin(a) * (2 + a * 0.2); if (sim.canPlace(depot, x, z)) spot = { x, z }; }

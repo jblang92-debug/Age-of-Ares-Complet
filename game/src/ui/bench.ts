@@ -31,7 +31,7 @@ export class Bench {
     this.x = a.x + this.dx * L * 0.3; this.z = a.z + this.dz * L * 0.3;
     // Ordre : unités communes d'abord, puis par faction ; bâtiment de production pour regrouper.
     this.kinds = (Object.keys(UNITS) as UnitKind[]).sort((p, q) => ((UNITS[p].faction ?? -1) - (UNITS[q].faction ?? -1)) || (UNITS[p].ere - UNITS[q].ere));
-    for (const P of sim.players) { P.ere = 3; P.eau = P.minerai = P.energie = P.solarite = 99999; }
+    for (const P of sim.players) { P.ere = 5; P.eau = P.minerai = P.energie = P.solarite = 99999; }
     this.dummy = sim.placeNear('habitat', 1, this.x + this.dx * 8, this.z + this.dz * 8);
     if (this.dummy) { this.dummy.progress = 1; this.dummy.done = true; }
     this.paint();

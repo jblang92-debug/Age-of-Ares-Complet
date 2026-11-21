@@ -65,7 +65,7 @@ export async function preload(paths: string[], onProgress?: (done: number, total
 export function has(path: string): boolean { return cache.has(path); }
 export function animations(path: string): THREE.AnimationClip[] { return cache.get(path)?.animations ?? []; }
 
-export interface FitOptions { footprint?: number; height?: number }
+export interface FitOptions { footprint?: number; height?: number; /** Mesure sur la pose réelle du squelette (modèles dont l'armature est mise à l'échelle). */ precise?: boolean }
 
 /** Crée une copie du modèle, posée au sol (y=0 à sa base), à la taille demandée en mètres. */
 export function spawn(path: string, fit: FitOptions = {}): THREE.Group {
@@ -73,7 +73,8 @@ export function spawn(path: string, fit: FitOptions = {}): THREE.Group {
   const holder = new THREE.Group();
   if (!gltf) return holder;
   const obj = cloneSkinned(gltf.scene);
-  const box = new THREE.Box3().setFromObject(obj);
+  if (fit.precise) obj.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(obj, !!fit.precise);
   const size = box.getSize(new THREE.Vector3());
   let s = 1;
   if (fit.height) s = fit.height / Math.max(size.y, 1e-3);

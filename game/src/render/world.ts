@@ -7,7 +7,7 @@ import { mulberry32 } from '../core/rng';
 import { buildTerrainMesh } from './terrainMesh';
 import { iceGeometry, iceMaterial } from './ice';
 import { preload, spawn, instanced } from './assets';
-import { UNIT_MODELS } from './units';
+import { UNIT_MODELS, WATER_Y } from './units';
 import { BUILDING_MODELS } from './buildings';
 
 export type Quality = 'basse' | 'moyenne' | 'haute';
@@ -23,6 +23,30 @@ const MODELS = [
   'quat/Rock_1.json', 'quat/Rock_2.json', 'quat/Rock_3.json', 'quat/Rock_4.json',
   'quat/Rock_Large_1.json', 'quat/Rock_Large_2.json', 'quat/Rock_Large_3.json',
 ];
+
+const SKY_OLD = new THREE.Color(0xa9c9e2), HAZE_NEW = new THREE.Color(0xd49a72);
+const HEMI_OLD = new THREE.Color(0xe8f2ff), HEMI_NEW = new THREE.Color(0xffe4c4), GROUND_OLD = new THREE.Color(0x5a6a3a), GROUND_NEW = new THREE.Color(0x8a4a2c);
+const SUN_OLD = new THREE.Color(0xfff0d8), SUN_NEW = new THREE.Color(0xffd3a1);
+/** Mer des âges anciens : un grand plan à vagues (deux houles qui se croisent), reflets du ciel, écume près des côtes. */
+function makeWater(size: number): THREE.Mesh {
+  const g = new THREE.PlaneGeometry(size, size, 1, 1).rotateX(-Math.PI / 2);
+  const m = new THREE.MeshStandardMaterial({ color: 0x2a7da0, roughness: 0.12, metalness: 0.25, transparent: true, opacity: 0.9, depthWrite: false });
+  const uniforms = { uTime: { value: 0 } };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, uniforms);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWp;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWp = (modelMatrix * vec4(position, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec3 vWp;')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        vec2 p = vWp.xz;
+        float w1 = sin(p.x * 0.35 + uTime * 1.3) * cos(p.y * 0.28 - uTime * 0.9);
+        float w2 = sin((p.x + p.y) * 0.62 - uTime * 1.9) * 0.5;
+        vec3 nW = normalize(vec3(cos(p.x * 0.35 + uTime * 1.3) * 0.12 + w2 * 0.08, 1.0, -sin(p.y * 0.28 - uTime * 0.9) * 0.12 + w2 * 0.08));
+        normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz);
+        diffuseColor.rgb *= 0.92 + 0.12 * w1;`);
+  };
+  const mesh = new THREE.Mesh(g, m); mesh.position.y = WATER_Y; mesh.renderOrder = 1; mesh.receiveShadow = true; mesh.userData.uniforms = uniforms;
+  return mesh;
+}
 
 export class World {
   readonly scene = new THREE.Scene();
@@ -51,7 +75,10 @@ export class World {
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.5;
     this.scene.add(this.sun, this.sun.target);
-    this.scene.add(buildTerrainMesh(map));
+    const terrain = buildTerrainMesh(map);
+    this.terrainMat = terrain.userData.mat as THREE.MeshStandardMaterial;
+    this.scene.add(terrain);
+    this.hemi = this.scene.children.find((o) => (o as THREE.HemisphereLight).isHemisphereLight) as THREE.HemisphereLight;
     if (map.voidMask.includes(1)) {
       // Le vide intersidéral : fond noir et champ d'étoiles sous la carte, visible dans les trous du terrain.
       this.scene.background = new THREE.Color(0x05040b);
@@ -63,7 +90,9 @@ export class World {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
       const stars = new THREE.Points(g, new THREE.PointsMaterial({ size: 2.2, sizeAttenuation: false, vertexColors: true, fog: false, depthWrite: false }));
-      stars.frustumCulled = false; this.scene.add(stars);
+      stars.frustumCulled = false; this.scene.add(stars); this.stars = stars;
+      this.water = makeWater(map.ext * 3.4);
+      this.scene.add(this.water);
     }
     this.setQuality(this.quality);
   }
@@ -123,8 +152,10 @@ export class World {
       g.position.set(o.x, this.map.heightAt(o.x, o.z) + (o.dy ?? 0), o.z);
       g.rotation.y = o.rot;
       if (o.roof) { const r = spawn(o.roof.model, { footprint: o.roof.footprint }); r.position.y = g.userData.height; g.add(r); }
-      this.scene.add(g);
+      this.decor.add(g);
     }
+    this.scene.add(this.decor);
+    this.decor.visible = this.epoch < 0 || this.epoch > 0.2;
   }
 
   private buildResources() {
@@ -185,16 +216,46 @@ export class World {
     this.pings.push({ mesh, t: 0 });
   }
 
+  // ---------------------------------------------------------------- époques
+  private terrainMat: THREE.MeshStandardMaterial | null = null;
+  private hemi: THREE.HemisphereLight | null = null;
+  private stars: THREE.Points | null = null;
+  private water: THREE.Mesh | null = null;
+  /** Décor high-tech posé près des bases (atterrisseur, conteneurs) : caché aux âges anciens. */
+  private decor = new THREE.Group();
+  /** Époque affichée : 0 = monde ancien (prairies, mer, ciel bleu), 1 = âge galactique (désert, vide intersidéral). Transition douce. */
+  private epoch = -1; private epochTarget = 1;
+  /** Âge du joueur de cet appareil : chacun voit le monde de son époque (les règles sont les mêmes pour tous). */
+  setAge(ere: number, snap = false) { this.epochTarget = ere >= 5 ? 1 : ere >= 3 ? 0.35 + (ere - 3) * 0.2 : 0; if (this.epoch < 0 || snap) this.applyEpoch(this.epoch = this.epochTarget); }
+  private applyEpoch(k: number) {
+    const green = 1 - Math.min(1, k / 0.75), sea = k >= 0.999 ? 0 : 1 - Math.max(0, (k - 0.75) / 0.25);
+    const u = this.terrainMat?.userData.uniforms as Record<string, { value: number }> | undefined;
+    if (u) u.uGreen.value = green;
+    const haze = this.hazeC.copy(SKY_OLD).lerp(HAZE_NEW, Math.min(1, k * 1.3));
+    const f = this.scene.fog as THREE.FogExp2; f.color.copy(haze);
+    if (this.water) {
+      this.water.visible = sea > 0.01;
+      (this.water.material as THREE.MeshStandardMaterial).opacity = 0.9 * sea;
+      this.scene.background = sea > 0.5 ? haze.clone() : new THREE.Color(0x05040b).lerp(haze, sea * 2);
+      if (this.stars) this.stars.visible = sea < 0.5;
+    } else this.scene.background = haze.clone();
+    if (this.hemi) { this.hemi.color.copy(HEMI_OLD).lerp(HEMI_NEW, k); this.hemi.groundColor.copy(GROUND_OLD).lerp(GROUND_NEW, k); }
+    this.sun.color.copy(SUN_OLD).lerp(SUN_NEW, k);
+    this.decor.visible = k > 0.2;
+  }
+
   /** Tempête de poussière : 0 = ciel clair, 1 = pleine tempête (transition douce). */
   stormTarget = 0; private stormK = 0;
-  private readonly hazeC = new THREE.Color(0xd49a72); private readonly dustC = new THREE.Color(0xa8622f);
+  private readonly hazeC = new THREE.Color(0xd49a72).clone(); private readonly dustC = new THREE.Color(0xa8622f);
   update(dt: number, focus: THREE.Vector3, camDist: number) {
     this.time += dt;
+    if (this.epoch >= 0 && this.epoch !== this.epochTarget) { this.epoch += Math.sign(this.epochTarget - this.epoch) * Math.min(Math.abs(this.epochTarget - this.epoch), dt / 4); this.applyEpoch(this.epoch); }
+    if (this.water) { const w = this.water.userData.uniforms as { uTime: { value: number } } | undefined; if (w) w.uTime.value = this.time; }
     if (this.stormK !== this.stormTarget) {
       this.stormK += Math.sign(this.stormTarget - this.stormK) * Math.min(Math.abs(this.stormTarget - this.stormK), dt / 3);
       const f = this.scene.fog as THREE.FogExp2, k = this.stormK;
       f.density = 0.0042 + 0.016 * k; f.color.copy(this.hazeC).lerp(this.dustC, k);
-      (this.scene.background as THREE.Color).copy(f.color);
+      if (!this.water || this.water.visible) (this.scene.background as THREE.Color).copy(f.color);
       this.sun.intensity = 3.2 * (1 - 0.45 * k);
     }
     if (this.crystals) this.crystals.emissiveIntensity = 0.55 + 0.2 * Math.sin(this.time * 2);

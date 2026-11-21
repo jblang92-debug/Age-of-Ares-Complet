@@ -7,7 +7,8 @@ import { NavGrid, INF } from './nav';
 
 export type UnitKind = 'ouvrier' | 'fantassin' | 'eclaireur' | 'blinde' | 'artillerie' | 'drone' | 'navette' | 'ingenieur' | 'antiblindage' | 'intercepteur' | 'cuirasse'
   | 'tireur' | 'sam' | 'chasseurChars' | 'exo' | 'zenith' | 'avc' | 'challenger' | 'pancake' | 'grenadier' | 'huit' | 'executioner' | 'canonAA' | 'spitfire' | 'imperial' | 'garde' | 'commando' | 'vigile'
-  | 'lame' | 'marteleur' | 'sabreur' | 'aether' | 'araignee' | 'araigneeCanon' | 'cogneur' | 'strikerLaser' | 'strikerMissiles' | 'strikerAssaut';
+  | 'lame' | 'marteleur' | 'sabreur' | 'aether' | 'araignee' | 'araigneeCanon' | 'cogneur' | 'strikerLaser' | 'strikerMissiles' | 'strikerAssaut'
+  | 'milicien' | 'hachier' | 'champion' | 'archer' | 'arbaletrier' | 'cavalier' | 'chevalier' | 'belier' | 'catapulte';
 /** Doctrine choisie avant la partie (vide : aucune). */
 export type Doctrine = '' | 'industrielle' | 'aeronavale' | 'frappe';
 export type Formation = 'libre' | 'ligne' | 'colonne' | 'carre';
@@ -36,7 +37,7 @@ export type Order =
   | { type: 'surrender'; owner: number };
 /** Agressive : poursuit l'ennemi. Défensive : revient à son poste. Tenir : ne bouge pas. Passive : ne tire que sur ordre. */
 export type Posture = 'agressive' | 'defensive' | 'tenir' | 'passive';
-export type SimEvent = { t: 'msg'; owner: number; text: string } | { t: 'depleted'; node: number } | { t: 'built'; b: number }
+export type SimEvent = { t: 'msg'; owner: number; text: string } | { t: 'age'; owner: number; ere: number } | { t: 'depleted'; node: number } | { t: 'built'; b: number }
   | { t: 'shot'; x0: number; z0: number; x1: number; z1: number; big: boolean; air?: boolean; from?: boolean; melee?: boolean; kind?: UnitKind; id?: number; /** Tir d'un bâtiment (tourelle, Centre…) : son type. */ bk?: string }
   | { t: 'dead'; x: number; z: number; big: boolean; id?: number; kind?: UnitKind; fly?: boolean }
   | { t: 'destroyed'; b: number; x: number; z: number; r: number }
@@ -61,24 +62,33 @@ export interface Stats {
 export interface Snapshot { t: number; score: number[]; mil: number[]; eco: number[]; armee: number[]; ouvriers: number[]; recolte: number[]; batiments: number[]; pop: number[] }
 const newStats = (): Stats => ({ recolte: 0, produits: 0, perdus: 0, tues: 0, batimentsDetruits: 0, rec: { eau: 0, minerai: 0, energie: 0, solarite: 0 },
   depense: 0, degats: 0, batimentsConstruits: 0, batimentsPerdus: 0, captures: 0, recherches: 0, ereT: [0], popMax: 0, armeeMax: 0, ouvriersProduits: 0, promotions: 0, produitsPar: {}, perdusPar: {} });
-const VEHICLE = new Set(['eclaireur', 'blinde', 'artillerie', 'sam', 'chasseurChars', 'avc', 'huit', 'canonAA']);
+const VEHICLE = new Set(['eclaireur', 'blinde', 'artillerie', 'sam', 'chasseurChars', 'avc', 'huit', 'canonAA', 'cavalier', 'chevalier', 'belier', 'catapulte']);
 /** Machines de combat (Atelier mécanique) : comptent aussi comme véhicules pour les bonus anti-blindage. */
 const MACHINE = new Set(['araignee', 'araigneeCanon', 'cogneur', 'strikerLaser', 'strikerMissiles', 'strikerAssaut']);
 for (const k of MACHINE) VEHICLE.add(k);
 /** Combattants au corps à corps : pas de traçante, un choc au contact. */
-export const MELEE = new Set(['lame', 'marteleur', 'sabreur', 'aether', 'cogneur']);
+export const MELEE = new Set(['lame', 'marteleur', 'sabreur', 'aether', 'cogneur', 'milicien', 'hachier', 'champion', 'cavalier', 'chevalier', 'belier']);
 const MOTOR = new Set(['eclaireur', 'blinde', 'artillerie', 'drone', 'intercepteur', 'sam', 'chasseurChars', 'avc', 'huit', 'canonAA', 'challenger', 'spitfire', 'zenith', 'pancake', 'executioner', 'imperial', 'araignee', 'araigneeCanon', 'cogneur', 'strikerLaser', 'strikerMissiles', 'strikerAssaut']);
-const INFANTRY = new Set(['fantassin', 'antiblindage', 'ingenieur', 'tireur', 'grenadier', 'lame', 'marteleur', 'sabreur', 'aether', 'exo', 'garde', 'commando', 'vigile']);
+const INFANTRY = new Set(['milicien', 'hachier', 'champion', 'archer', 'arbaletrier', 'fantassin', 'antiblindage', 'ingenieur', 'tireur', 'grenadier', 'lame', 'marteleur', 'sabreur', 'aether', 'exo', 'garde', 'commando', 'vigile']);
 /** Catégorie d'une unité pour les bonus de dégâts (air, machine, véhicule, infanterie). */
 export function unitClass(kind: string): 'air' | 'machine' | 'vehicule' | 'infanterie' | 'autre' {
   return UNITS[kind]?.vole ? 'air' : MACHINE.has(kind) ? 'machine' : VEHICLE.has(kind) ? 'vehicule' : INFANTRY.has(kind) || kind === 'ouvrier' ? 'infanterie' : 'autre';
 }
 const ERA1 = ['habitat', 'stationEau', 'depotMinier', 'centrale', 'caserne', 'arene', 'tourelle'];
 const ERA2 = ['raffinerie', 'recycleur', 'usine', 'hangar', 'atelier', 'tourelleAA', 'bouclier', 'labo'];
+/** Âges anciens : bâtiments qui comptent pour passer au Moyen Âge, puis à l'âge moderne. */
+const AGE1 = ['habitat', 'stationEau', 'depotMinier', 'centrale', 'caserne', 'archerie', 'ecurie', 'tourelle', 'quai'];
+const AGE2 = ['caserne', 'archerie', 'ecurie', 'atelierSiege', 'tourelle'];
+/** Bâtiments exigés (2 types achevés) pour quitter l'âge `ere`. */
+const NEED: Record<number, string[]> = { 1: AGE1, 2: AGE2, 3: ERA1, 4: ERA2 };
 /** Ascenseur orbital : temps à tenir une fois achevé (5 min). */
 export const WONDER_TICKS = 3000;
 
 const SHAPE: Record<UnitKind, { radius: number; wide: 0 | 1; rank: number }> = {
+  milicien: { radius: 0.5, wide: 0, rank: 1 }, hachier: { radius: 0.5, wide: 0, rank: 1 }, champion: { radius: 0.55, wide: 0, rank: 1 },
+  archer: { radius: 0.5, wide: 0, rank: 2 }, arbaletrier: { radius: 0.5, wide: 0, rank: 2 },
+  cavalier: { radius: 0.9, wide: 0, rank: 1 }, chevalier: { radius: 0.95, wide: 0, rank: 1 },
+  belier: { radius: 1.3, wide: 1, rank: 0 }, catapulte: { radius: 1.3, wide: 1, rank: 3 },
   blinde: { radius: 1.25, wide: 1, rank: 0 },
   artillerie: { radius: 1.25, wide: 1, rank: 0 },
   ingenieur: { radius: 0.5, wide: 0, rank: 3 },
@@ -225,6 +235,19 @@ export class Sim {
   private queue: Order[] = [];
   private hash = new Map<number, Unit[]>();
 
+  /** Âge de départ de la partie (1 : Antiquité, 3 : âge moderne, l'ancienne ère 1). Le menu choisit ; par défaut : moderne. */
+  startAge = 3;
+  /** Fixe l'âge de départ de tous les camps (à appeler avant le premier tick). */
+  setStartAge(a: number) {
+    this.startAge = a;
+    for (let o = 0; o < this.players.length; o++) { const P = this.players[o]; if (P.neutral) continue; P.ere = a; const t = this.stats[o].ereT; t.length = 0; for (let i = 0; i < a; i++) t.push(0); }
+    // Départ aux âges anciens : l'éclaireur de départ devient un cavalier éclaireur.
+    if (a <= 2) for (const u of this.units.filter((x) => x.kind === 'eclaireur')) {
+      const i = this.units.indexOf(u); this.units.splice(i, 1); this.byId.delete(u.id);
+      this.spawn('cavalier', u.owner, u.x, u.z);
+    }
+    this.count();
+  }
   constructor(readonly map: TerrainMap, readonly objects: MapObjects) {
     this.nav = new NavGrid(map, objects);
     objects.resources.forEach((r, i) => this.nodes.push({ id: i, kind: r.kind, res: NODE_RES[r.kind], x: r.x, z: r.z, r: r.sx * 0.75, amount: GAME.gisement[r.kind], b: -1 }));
@@ -235,6 +258,7 @@ export class Sim {
       const c = this.addBuilding('centre', owner, s.x, s.z, true);
       void c;
     });
+    this.setStartAge(this.startAge);
     this.count();
   }
 
@@ -688,7 +712,8 @@ export class Sim {
     else if (o.type === 'assist') { const b = this.bById.get(o.b); if (b && !b.done) for (const u of mine(o.ids)) if (u.kind === 'ouvrier' && u.owner === b.owner) this.startBuild(u, b); }
     else if (o.type === 'place') {
       const rule = BUILDINGS[o.kind];
-      if (!rule || rule.ere > this.players[o.owner].ere) return this.msg(o.owner, 'Disponible à l\'ère ' + (rule?.ere ?? 2));
+      if (!rule || rule.ere > this.players[o.owner].ere) return this.msg(o.owner, 'Disponible à l\'âge ' + (GAME.eres[(rule?.ere ?? 2) - 1]?.nom ?? ''));
+      if (rule.ereMax && this.players[o.owner].ere > rule.ereMax) return this.msg(o.owner, 'Bâtiment d\'un âge révolu');
       const under = o.kind === 'porte' ? this.wallsUnder(o.owner, o.x, o.z) : [];
       if (!this.canPlace(o.kind, o.x, o.z, under)) return this.msg(o.owner, 'Emplacement impossible');
       const lack = this.canPay(o.owner, this.buildCost(o.owner, o.kind));
@@ -699,9 +724,9 @@ export class Sim {
       for (const u of mine(o.ids)) if (u.kind === 'ouvrier' && u.owner === o.owner) this.startBuild(u, b);
     } else if (o.type === 'train') {
       const b = this.bById.get(o.b), rule = UNITS[o.kind];
-      if (!b || !b.done || rule.produitA !== b.kind || rule.ere > this.players[b.owner].ere) return;
+      if (!b || !b.done || rule.produitA !== b.kind || rule.ere > this.players[b.owner].ere || (rule.ereMax && this.players[b.owner].ere > rule.ereMax)) return;
       if (rule.faction !== undefined && rule.faction !== this.players[b.owner].faction) return;
-      if (b.task?.kind === 'age') return this.msg(b.owner, 'Le Centre est occupé par le passage d\'ère');
+      if (b.task?.kind === 'age') return this.msg(b.owner, 'Le Centre est occupé par le passage à l\'âge suivant');
       if (b.queue.length >= 5) return this.msg(b.owner, 'File de production pleine');
       const lack = this.canPay(b.owner, rule.cout);
       if (lack) return this.msg(b.owner, 'Pas assez de ' + lack);
@@ -741,10 +766,10 @@ export class Sim {
     } else if (o.type === 'age') {
       const b = this.bById.get(o.b); if (!b || b.kind !== 'centre' || b.task) return;
       const P = this.players[b.owner], next = GAME.eres[P.ere];
-      if (!next || !('cout' in next)) return this.msg(b.owner, 'Ère maximale atteinte');
-      const need = P.ere === 1 ? ERA1 : ERA2;
+      if (!next || !('cout' in next)) return this.msg(b.owner, 'Âge maximal atteint');
+      const need = NEED[P.ere] ?? ERA2;
       const kinds = new Set(this.buildings.filter((x) => x.owner === b.owner && x.done && need.includes(x.kind)).map((x) => x.kind));
-      if (kinds.size < 2) return this.msg(b.owner, 'Il faut 2 types de bâtiments de l\'ère en cours');
+      if (kinds.size < 2) return this.msg(b.owner, 'Il faut 2 types de bâtiments de l\'âge en cours');
       const lack = this.canPay(b.owner, next.cout);
       if (lack) return this.msg(b.owner, 'Pas assez de ' + lack);
       this.pay(b.owner, next.cout);
@@ -758,7 +783,7 @@ export class Sim {
       const b = this.bById.get(o.b), r = RESEARCH[o.key];
       if (!b || b.kind !== 'labo' || !b.done || b.task || !r) return;
       const P = this.players[b.owner];
-      if ((r.ere ?? 2) > P.ere) return this.msg(b.owner, 'Disponible à l\'ère ' + r.ere);
+      if ((r.ere ?? 4) > P.ere) return this.msg(b.owner, 'Disponible à l\'âge ' + GAME.eres[(r.ere ?? 4) - 1].nom);
       if (P.research.has(o.key) || this.buildings.some((x) => x.owner === b.owner && x.task?.key === o.key)) return;
       const lack = this.canPay(b.owner, r.cout);
       if (lack) return this.msg(b.owner, 'Pas assez de ' + lack);
@@ -784,7 +809,7 @@ export class Sim {
         b.task.left -= DT * this.spd(b.owner);
         if (b.task.left <= 0) {
           const P = this.players[b.owner];
-          if (b.task.kind === 'age') { P.ere++; this.stats[b.owner].ereT[P.ere - 1] = this.tick; this.msg(b.owner, 'Ère ' + P.ere + ' atteinte : ' + GAME.eres[P.ere - 1].nom); }
+          if (b.task.kind === 'age') { P.ere++; this.stats[b.owner].ereT[P.ere - 1] = this.tick; this.msg(b.owner, GAME.eres[P.ere - 1].nom + ' atteint (âge ' + P.ere + ')'); this.events.push({ t: 'age', owner: b.owner, ere: P.ere }); }
           else {
             P.research.add(b.task.key); this.stats[b.owner].recherches++; this.msg(b.owner, 'Recherche terminée : ' + RESEARCH[b.task.key].nom);
             if (b.task.key === 'murs') for (const w of this.buildings) if (w.owner === b.owner && (w.kind === 'mur' || w.kind === 'porte')) { w.maxHp *= 1.5; w.hp *= 1.5; }
@@ -964,7 +989,7 @@ export class Sim {
     return {
       militaire: Math.round(s.tues * 5 + s.batimentsDetruits * 20 + s.degats / 40),
       economie: Math.round((s.recolte + s.rec.energie) / 10),
-      technologie: s.recherches * 30 + (this.players[owner].ere - 1) * 80,
+      technologie: s.recherches * 30 + (this.players[owner].ere - this.startAge) * 80,
       societe: s.batimentsConstruits * 5 + s.popMax * 2 + s.captures * 15,
     };
   }

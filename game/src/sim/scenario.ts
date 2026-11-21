@@ -32,17 +32,17 @@ export class Scenario {
     const sim = this.sim, me = this.me, foe = sim.players[1];
     if (this.id === 'tuto') { me.eau += 300; me.minerai += 300; me.energie += 100; }
     if (this.id === 'defense') {
-      me.ere = 2; me.eau = 800; me.minerai = 900; me.energie = 500; me.solarite = 100;
+      me.ere = 4; me.eau = 800; me.minerai = 900; me.energie = 500; me.solarite = 100;
       const c = this.centre(0)!, f = this.along(0.18);
       for (let i = 0; i < 3; i++) sim.placeNear('habitat', 0, c.x - 8 + i * 5, c.z - 10);
       sim.placeNear('tourelle', 0, f.x - 5, f.z); sim.placeNear('tourelle', 0, f.x + 5, f.z); sim.placeNear('tourelle', 0, f.x, f.z - 3); sim.placeNear('caserne', 0, c.x - 9, c.z);
       this.squad([['fantassin', 6], ['antiblindage', 3], ['blinde', 2]], 0, this.along(0.12));
     }
     if (this.id === 'raid') {
-      me.ere = 2; me.eau = 0; me.minerai = 0; me.energie = 0; me.solarite = 0;
+      me.ere = 4; me.eau = 0; me.minerai = 0; me.energie = 0; me.solarite = 0;
       { const c0 = this.centre(0)!; for (let i = 0; i < 4; i++) sim.placeNear('habitat', 0, c0.x - 10 + i * 5, c0.z - 10); }
       this.squad([['blinde', 3], ['fantassin', 6], ['antiblindage', 3], ['strikerLaser', 2]], 0, this.along(0.5));
-      foe.ere = 2;
+      foe.ere = 4;
       const c = this.centre(1)!, d = this.along(0.85);
       sim.placeNear('tourelle', 1, d.x - 4, d.z); sim.placeNear('tourelle', 1, d.x + 4, d.z); sim.placeNear('tourelle', 1, (d.x + c.x) / 2 + 3, (d.z + c.z) / 2 + 3);
       sim.placeNear('caserne', 1, c.x + 8, c.z); sim.placeNear('usine', 1, c.x - 9, c.z);
@@ -73,7 +73,7 @@ export class Scenario {
       else if (t >= dur) sim.endGame(sim.players[1].team, 'TEMPS ÉCOULÉ : DÉFAITE');
     }
     if (this.id === 'course') {
-      if (this.me.ere >= 3) sim.endGame(this.me.team, `ORBITALE ATTEINTE EN ${Math.floor(t / 600)}:${String(Math.floor(t / 10) % 60).padStart(2, '0')}`);
+      if (this.me.ere >= 5) sim.endGame(this.me.team, `ORBITALE ATTEINTE EN ${Math.floor(t / 600)}:${String(Math.floor(t / 10) % 60).padStart(2, '0')}`);
       else if (t >= dur) sim.endGame(sim.players[1].team, 'TEMPS ÉCOULÉ : DÉFAITE');
     }
   }

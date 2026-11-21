@@ -37,6 +37,36 @@ const BOREALE: Record<string, BLook> = {
   labo: { model: 'shs/SatelliteDish.json', height: 7.5 },
   bouclier: { model: 'shs/ShieldGenerator.json', footprint: 5 },
 };
+/** Antiquité : village de bois (Quaternius, « Ultimate Fantasy RTS », CC0). */
+const LOOKS_A1: Record<string, BLook> = {
+  centre: { model: 'antique/Barracks_FirstAge_Level3.json', footprint: 9.6 },
+  habitat: { model: 'antique/Houses_FirstAge_1_Level1.json', footprint: 4.8 },
+  stationEau: { model: 'medieval/well_@.json', footprint: 3.6 },
+  depotMinier: { model: 'antique/Storage_FirstAge_Level1.json', footprint: 5.4 },
+  centrale: { model: 'antique/Windmill_FirstAge.json', height: 6.5 },
+  caserne: { model: 'antique/Barracks_FirstAge_Level1.json', footprint: 7.2 },
+  archerie: { model: 'antique/Archery_FirstAge_Level1.json', footprint: 6.8 },
+  ecurie: { model: 'antique/Storage_FirstAge_Leve3.json', footprint: 7 },
+  quai: { model: 'antique/Port_FirstAge_Level1.json', footprint: 8.4 },
+  tourelle: { model: 'antique/WatchTower_FirstAge_Level3.json', height: 7.5 },
+};
+/** Moyen Âge : bourg coloré aux couleurs du camp (KayKit, « Medieval Hexagon », CC0) ; @ = couleur du camp. */
+const LOOKS_A2: Record<string, BLook> = {
+  centre: { model: 'medieval/castle_@.json', footprint: 9.6 },
+  habitat: { model: 'medieval/home_A_@.json', footprint: 4.6 },
+  stationEau: { model: 'medieval/well_@.json', footprint: 3.6 },
+  depotMinier: { model: 'medieval/mine_@.json', footprint: 5.6 },
+  centrale: { model: 'medieval/windmill_@.json', footprint: 4.8 },
+  caserne: { model: 'medieval/barracks_@.json', footprint: 7.4 },
+  archerie: { model: 'medieval/archeryrange_@.json', footprint: 6.8 },
+  ecurie: { model: 'medieval/tavern_@.json', footprint: 6.6 },
+  atelierSiege: { model: 'medieval/blacksmith_@.json', footprint: 7.4 },
+  quai: { model: 'antique/Port_SecondAge_Level1.json', footprint: 8.4 },
+  tourelle: { model: 'medieval/tower_A_@.json', footprint: 3.4 },
+};
+/** Couleur KayKit la plus proche de chaque couleur de camp (orange, cyan, vert, violet). */
+const KK_COLOR = ['red', 'blue', 'green', 'yellow', 'yellow'];
+const KK_ALL = ['red', 'blue', 'green', 'yellow'];
 /** Ère 3 « Orbitale » : un satellite tourne au-dessus des grands bâtiments. */
 const ORBITAL = new Set(['centre', 'caserne', 'usine', 'hangar', 'labo', 'quai', 'ascenseur']);
 const SAT = 'shs/Satellite.json';
@@ -87,7 +117,8 @@ function orbitalize(g: THREE.Object3D, kind: string, r: number, color: number) {
   g.userData.plaza = true;
   g.userData.height = Math.max(base, h);
 }
-export const BUILDING_MODELS = [...new Set([...Object.values(LOOKS), ...Object.values(LOOKS2), ...Object.values(BOREALE), { model: SAT }, ...Array.from({ length: 10 }, (_, i) => ({ model: `e3/tour${i + 1}.json` }))].flatMap((l: BLook) => l.roof ? [l.model, l.roof.model] : [l.model]))];
+export const BUILDING_MODELS = [...new Set([...Object.values(LOOKS), ...Object.values(LOOKS2), ...Object.values(BOREALE), ...Object.values(LOOKS_A1), ...Object.values(LOOKS_A2), { model: SAT }, ...Array.from({ length: 10 }, (_, i) => ({ model: `e3/tour${i + 1}.json` }))]
+  .flatMap((l: BLook) => (l.model.includes('@') ? KK_ALL.map((c) => l.model.replace('@', c)) : [l.model]).concat(l.roof ? [l.roof.model] : [])))];
 const CAP = 600;
 const COLORS = TEAM_COLORS.map((c) => new THREE.Color(c));
 
@@ -130,7 +161,9 @@ export class BuildingViews {
 
   private create(b: Building): THREE.Object3D {
     const era = this.style(b);
-    const look = (altStyle(this.sim, b.owner) && BOREALE[b.kind]) || (era >= 2 && LOOKS2[b.kind]) || LOOKS[b.kind];
+    const anc = era === 1 ? LOOKS_A1[b.kind] : era === 2 ? LOOKS_A2[b.kind] : undefined;
+    const look: BLook | undefined = anc ? { ...anc, model: anc.model.replace('@', KK_COLOR[colorIndex(this.sim, b.owner)]) }
+      : (altStyle(this.sim, b.owner) && BOREALE[b.kind]) || (era >= 4 && LOOKS2[b.kind]) || LOOKS[b.kind];
     let g: THREE.Object3D;
     if (look) {
       g = spawn(look.model, { footprint: look.footprint, height: look.height });
@@ -140,8 +173,9 @@ export class BuildingViews {
       const color = b.kind === 'sentinelle' ? 0xff4a3a : TEAM_COLORS[colorIndex(this.sim, b.owner)];
       g = b.kind === 'porte' ? makeGate(color) : TURRET_KINDS.has(b.kind) ? makeTurret(b.kind, color) : new THREE.Group();
     }
-    if (era === 3 && look) orbitalize(g, b.kind, b.r, TEAM_COLORS[colorIndex(this.sim, b.owner)]);
-    if (era === 3 && ORBITAL.has(b.kind)) {
+    if (anc && b.kind === 'tourelle') g.userData.muzzleY = (g.userData.height ?? 7) * 0.82;   // tour de guet : les archers tirent du sommet
+    if (era === 5 && look) orbitalize(g, b.kind, b.r, TEAM_COLORS[colorIndex(this.sim, b.owner)]);
+    if (era === 5 && ORBITAL.has(b.kind)) {
       // Satellites en orbite (et, pour l'Ascenseur, un faisceau aux couleurs du camp).
       const orbit = new THREE.Group(), h = (g.userData.height ?? 5) + (b.kind === 'ascenseur' ? 4 : 3);
       const n = b.kind === 'ascenseur' ? 3 : 1;
@@ -153,7 +187,8 @@ export class BuildingViews {
       }
     }
     g.position.set(b.x, this.sim.map.heightAt(b.x, b.z), b.z);
-    if (altStyle(this.sim, b.owner) && look) g.rotation.y = Math.PI;
+    if (anc) g.rotation.y = ((b.id * 2.39996) % (Math.PI * 2));   // villages anciens : orientations variées
+    else if (altStyle(this.sim, b.owner) && look) g.rotation.y = Math.PI;
     g.userData.alt = altStyle(this.sim, b.owner);
     g.userData.era = era; g.userData.born = performance.now();
     this.scene.add(g);
@@ -173,11 +208,13 @@ export class BuildingViews {
     return null;
   }
 
-  /** Style d'un bâtiment : 1, 2 (ère 2 industrielle) ou 3 (orbitale). */
+  /** Style d'un bâtiment selon l'âge de son camp : 1 (Antiquité), 2 (Moyen Âge), 3 (moderne), 4 (industriel), 5 (galactique). */
   private style(b: Building): number {
-    const ere = this.sim.players[b.owner].ere;
-    if (ere >= 3 && (LOOKS[b.kind] || BOREALE[b.kind])) return 3;
-    return ere >= 2 && LOOKS2[b.kind] ? 2 : 1;
+    const ere = this.sim.players[b.owner]?.ere ?? 3;
+    if (ere === 1 && LOOKS_A1[b.kind]) return 1;
+    if (ere === 2 && (LOOKS_A2[b.kind] || LOOKS_A1[b.kind])) return LOOKS_A2[b.kind] ? 2 : 1;
+    if (ere >= 5 && (LOOKS[b.kind] || BOREALE[b.kind])) return 5;
+    return ere >= 4 && LOOKS2[b.kind] ? 4 : 3;
   }
 
   /** Aperçu de placement : disque vert (possible) ou rouge (impossible). */

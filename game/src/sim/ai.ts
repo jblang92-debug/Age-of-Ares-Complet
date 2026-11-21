@@ -1,15 +1,16 @@
 import { SEPARATED } from '../mapgen/terrain';
 // IA adverse. Elle ne triche pas : elle lit l'état du jeu et émet les mêmes ordres qu'un joueur.
 import { Sim, type Unit, type Building, type ResNode, type UnitKind } from './sim';
-import { UNITS, BUILDINGS, GAME, RESEARCH } from '../data/rules';
+import { UNITS, BUILDINGS, GAME, RESEARCH, dispo } from '../data/rules';
 
 export type Level = 'facile' | 'normal' | 'difficile';
-interface Profile { think: number; workers: number; army: number; first: number; casernes: number; turrets: number; depots: boolean; scouts: boolean; grow: number; cap: number; /** Tick à partir duquel l'IA passe en ère 2 (Infinity : jamais). */ era2: number; drones: boolean; labo: boolean; /** Ère 3 (Infinity : jamais) et Ascenseur orbital. */ era3: number; wonder: boolean }
+interface Profile { think: number; workers: number; army: number; first: number; casernes: number; turrets: number; depots: boolean; scouts: boolean; grow: number; cap: number; /** Tick à partir duquel l'IA passe en ère 2 (Infinity : jamais). */ era2: number; drones: boolean; labo: boolean; /** Ère 3 (Infinity : jamais) et Ascenseur orbital. */ era3: number; wonder: boolean;
+  /** Âges anciens : tick de passage au Moyen Âge, puis à l'âge moderne (Infinity : jamais). Les seuils era2 et era3 comptent ensuite depuis l'arrivée à l'âge moderne. */ age2: number; age3: number }
 /** Réglages par niveau : rythme de réflexion (en ticks), taille de l'économie et de l'armée, minute de la première attaque. */
 export const LEVELS: Record<Level, Profile> = {
-  facile:    { think: 40, workers: 8,  army: 5,  first: 5400, casernes: 1, turrets: 0, depots: false, scouts: false, grow: 2, cap: 12, era2: Infinity, drones: false, labo: false, era3: Infinity, wonder: false },
-  normal:    { think: 18, workers: 14, army: 9,  first: 3600, casernes: 1, turrets: 1, depots: true,  scouts: false, grow: 3, cap: 24, era2: 3600, drones: false, labo: false, era3: 10800, wonder: false },
-  difficile: { think: 8,  workers: 18, army: 14, first: 3300, casernes: 2, turrets: 2, depots: true,  scouts: true,  grow: 4, cap: 40, era2: 3000, drones: true, labo: true, era3: 7800, wonder: true },
+  facile:    { think: 40, workers: 8,  army: 5,  first: 5400, casernes: 1, turrets: 0, depots: false, scouts: false, grow: 2, cap: 12, era2: Infinity, drones: false, labo: false, era3: Infinity, wonder: false, age2: 5400, age3: Infinity },
+  normal:    { think: 18, workers: 14, army: 9,  first: 3600, casernes: 1, turrets: 1, depots: true,  scouts: false, grow: 3, cap: 24, era2: 3600, drones: false, labo: false, era3: 10800, wonder: false, age2: 2700, age3: 6600 },
+  difficile: { think: 8,  workers: 18, army: 14, first: 3300, casernes: 2, turrets: 2, depots: true,  scouts: true,  grow: 4, cap: 40, era2: 3000, drones: true, labo: true, era3: 7800, wonder: true, age2: 2100, age3: 4800 },
 };
 
 export class Ai {
@@ -119,10 +120,12 @@ export class Ai {
       }
     }
     const sep = !!this.sep && !!this.shore && !!this.landing;
+    /** Première attaque : plus tard quand la partie part de l'Antiquité (cinq âges à parcourir). */
+    const first = pr.first + (sim.startAge <= 2 ? 3000 : 0);
     const ice = this.nearest('glace', centre.x, centre.z), ore = this.nearest('minerai', centre.x, centre.z);
     const afford = (c: object) => !sim.canPay(me, c);
     // Unité disponible pour ma faction et mon ère, et payable.
-    const ok = (k: string) => { const r = UNITS[k]; return !!r && (r.faction === undefined || r.faction === P.faction) && r.ere <= P.ere && afford(r.cout); };
+    const ok = (k: string) => { const r = UNITS[k]; return !!r && (r.faction === undefined || r.faction === P.faction) && dispo(r, P.ere) && afford(r.cout); };
     const nKind = (k: string) => army.filter((u) => u.kind === k).length;
 
     // --- Économie : ouvriers inactifs au travail, environ 55 % sur l'eau.
@@ -158,14 +161,22 @@ export class Ai {
     if (ice && (!centre.rally || centre.rally.node !== ice.id)) sim.issue({ type: 'rally', b: centre.id, x: ice.x, z: ice.z, node: ice.id });
     if (workers.length + centre.queue.length < pr.workers && centre.queue.length < 2 && afford(UNITS.ouvrier.cout)) sim.issue({ type: 'train', b: centre.id, kind: 'ouvrier' });
 
-    // --- Passage en ère 2.
+    // --- Âges anciens : Moyen Âge, puis âge moderne (deux types de bâtiments de l'âge en cours exigés).
     const casDone = this.mine('caserne').some((b) => b.done);
-    const wantAge = P.ere === 1 && !centre.task && casDone && sim.tick >= pr.era2 && workers.length >= pr.workers * 0.75;
-    if (wantAge && afford(GAME.eres[1].cout)) sim.issue({ type: 'age', b: centre.id });
-    // --- Passage en ère 3 (Orbitale), une fois deux bâtiments de l'ère 2 debout.
-    const era2Kinds = new Set(this.mine().filter((b) => b.done && ['raffinerie', 'usine', 'hangar', 'labo', 'tourelleAA', 'bouclier', 'recycleur'].includes(b.kind)).map((b) => b.kind)).size;
-    const want3 = P.ere === 2 && !centre.task && sim.tick >= pr.era3 && era2Kinds >= 2;
-    if (want3 && afford(GAME.eres[2].cout)) sim.issue({ type: 'age', b: centre.id });
+    const kindsDone = (list: string[]) => new Set(this.mine().filter((b) => b.done && list.includes(b.kind)).map((b) => b.kind)).size;
+    const wantOld = (P.ere === 1 && sim.tick >= pr.age2 && kindsDone(['habitat', 'stationEau', 'depotMinier', 'centrale', 'caserne', 'archerie', 'ecurie', 'tourelle', 'quai']) >= 2)
+      || (P.ere === 2 && sim.tick >= pr.age3 && kindsDone(['caserne', 'archerie', 'ecurie', 'atelierSiege', 'tourelle']) >= 2);
+    const wantOldAge = wantOld && !centre.task && casDone && workers.length >= pr.workers * 0.7;
+    if (wantOldAge && afford((GAME.eres[P.ere] as { cout: object }).cout)) sim.issue({ type: 'age', b: centre.id });
+    /** Tick d'arrivée à l'âge moderne (0 si la partie y commence) : les seuils des âges suivants en partent. */
+    const t3 = P.ere >= 3 ? sim.stats[me].ereT[2] ?? 0 : Infinity;
+    // --- Passage à l'âge industriel (ancienne ère 2).
+    const wantAge = P.ere === 3 && !centre.task && casDone && sim.tick - t3 >= pr.era2 && workers.length >= pr.workers * 0.75;
+    if (wantAge && afford(GAME.eres[3].cout)) sim.issue({ type: 'age', b: centre.id });
+    // --- Passage à l'âge galactique (ancienne ère 3, Orbitale), une fois deux bâtiments de l'âge industriel debout.
+    const era2Kinds = kindsDone(['raffinerie', 'usine', 'hangar', 'labo', 'tourelleAA', 'bouclier', 'recycleur']);
+    const want3 = P.ere === 4 && !centre.task && sim.tick - t3 >= pr.era3 && era2Kinds >= 2;
+    if (want3 && afford(GAME.eres[4].cout)) sim.issue({ type: 'age', b: centre.id });
 
     // --- Chantiers : un chantier sans ouvrier en reçoit un.
     const sites = this.mine().filter((b) => !b.done);
@@ -176,6 +187,7 @@ export class Ai {
     if (!sites.length && workers.length) {
       const count = (k: string) => this.mine(k).length;
       const build = (kind: string, cx: number, cz: number, r0: number): boolean => {
+        if (!dispo(BUILDINGS[kind], P.ere)) return false;
         if (!afford(BUILDINGS[kind].cout)) return true;            // on attend d'avoir de quoi payer
         const s = this.spot(kind, cx, cz, r0); if (!s) return false;
         const w = this.pickBuilder(workers, s.x, s.z); if (!w) return false;
@@ -190,19 +202,23 @@ export class Ai {
       else if (sep && casernesDone && count('quai') < 1) build('quai', this.shore!.x, this.shore!.z, 0);
       else if (sep && casernesDone && count('centrale') < 1) build('centrale', centre.x - dirX / dl * 10, centre.z - dirZ / dl * 10, 6);   // les navettes demandent de l'énergie
       else if (count('caserne') < pr.casernes && workers.length >= 10) build('caserne', centre.x + dirX / dl * 8, centre.z + dirZ / dl * 8, 10);
+      // Âges anciens : archerie, écurie, puis atelier de siège au Moyen Âge.
+      else if (P.ere <= 2 && casernesDone && count('archerie') < 1 && workers.length >= 8) build('archerie', centre.x + dirX / dl * 5 + dirZ / dl * 7, centre.z + dirZ / dl * 5 - dirX / dl * 7, 8);
+      else if (P.ere <= 2 && casernesDone && count('ecurie') < 1 && workers.length >= 10) build('ecurie', centre.x + dirX / dl * 5 - dirZ / dl * 7, centre.z + dirZ / dl * 5 + dirX / dl * 7, 8);
+      else if (P.ere === 2 && count('atelierSiege') < 1 && workers.length >= 10) build('atelierSiege', centre.x - dirX / dl * 6, centre.z - dirZ / dl * 6, 10);
       else if (pr.depots && far(ice, 'stationEau')) build('stationEau', ice!.x, ice!.z, 6);
       else if (pr.depots && far(ore, 'depotMinier')) build('depotMinier', ore!.x, ore!.z, 6);
       else if (casernesDone && pr.turrets > 0 && count('centrale') < 1) build('centrale', centre.x - dirX / dl * 10, centre.z - dirZ / dl * 10, 6);
-      else if ((P.ere >= 2 || (pr.turrets >= 2 && P.energie < 80 && workers.length >= 16)) && count('centrale') < 2) build('centrale', centre.x - dirX / dl * 10, centre.z - dirZ / dl * 10, 6);
-      else if (P.ere >= 2 && count('usine') < 1) build('usine', centre.x + dirX / dl * 6, centre.z + dirZ / dl * 6, 12);
-      else if (P.ere >= 2 && count('raffinerie') < 1 && this.nearest('solarite', centre.x, centre.z)) { const n = this.nearest('solarite', centre.x, centre.z)!; build('raffinerie', n.x, n.z, 6); }
-      else if (P.ere >= 2 && count('recycleur') < (P.minerai > 1500 && P.eau < 800 ? 4 : 2) && P.eau < (P.minerai > 1500 ? 800 : 250) && workers.length >= 10) build('recycleur', centre.x + dirZ / dl * 8, centre.z - dirX / dl * 8, 8);   // eau infinie : la base ne manque plus d'eau
-      else if (P.ere >= 2 && pr.labo && count('atelier') < 1 && P.energie >= 110) build('atelier', centre.x - dirX / dl * 2, centre.z - dirZ / dl * 2, 16);
-      else if (P.ere >= 2 && sim.units.some((u) => sim.foe(u.owner, me) && u.fly) && count('tourelleAA') < 2) build('tourelleAA', centre.x, centre.z, 8);
-      else if (P.ere >= 2 && pr.drones && count('hangar') < 1 && P.solarite >= 50) build('hangar', centre.x - dirX / dl * 4, centre.z - dirZ / dl * 4, 14);
-      else if (P.ere >= 2 && pr.labo && count('labo') < 1 && P.solarite >= 50) build('labo', centre.x - dirX / dl * 8, centre.z - dirZ / dl * 8, 14);
-      else if (P.ere >= 3 && count('defense') < Math.max(1, pr.turrets)) build('defense', centre.x + dirX / dl * 11, centre.z + dirZ / dl * 11, 6);
-      else if (P.ere >= 3 && pr.wonder && count('ascenseur') < 1 && P.minerai >= 900 && P.eau >= 900 && P.solarite >= 500 && P.energie >= 450) build('ascenseur', centre.x - dirX / dl * 14, centre.z - dirZ / dl * 14, 16);
+      else if ((P.ere >= 4 || (pr.turrets >= 2 && P.energie < 80 && workers.length >= 16)) && count('centrale') < 2) build('centrale', centre.x - dirX / dl * 10, centre.z - dirZ / dl * 10, 6);
+      else if (P.ere >= 4 && count('usine') < 1) build('usine', centre.x + dirX / dl * 6, centre.z + dirZ / dl * 6, 12);
+      else if (P.ere >= 4 && count('raffinerie') < 1 && this.nearest('solarite', centre.x, centre.z)) { const n = this.nearest('solarite', centre.x, centre.z)!; build('raffinerie', n.x, n.z, 6); }
+      else if (P.ere >= 4 && count('recycleur') < (P.minerai > 1500 && P.eau < 800 ? 4 : 2) && P.eau < (P.minerai > 1500 ? 800 : 250) && workers.length >= 10) build('recycleur', centre.x + dirZ / dl * 8, centre.z - dirX / dl * 8, 8);   // eau infinie : la base ne manque plus d'eau
+      else if (P.ere >= 4 && pr.labo && count('atelier') < 1 && P.energie >= 110) build('atelier', centre.x - dirX / dl * 2, centre.z - dirZ / dl * 2, 16);
+      else if (P.ere >= 4 && sim.units.some((u) => sim.foe(u.owner, me) && u.fly) && count('tourelleAA') < 2) build('tourelleAA', centre.x, centre.z, 8);
+      else if (P.ere >= 4 && pr.drones && count('hangar') < 1 && P.solarite >= 50) build('hangar', centre.x - dirX / dl * 4, centre.z - dirZ / dl * 4, 14);
+      else if (P.ere >= 4 && pr.labo && count('labo') < 1 && P.solarite >= 50) build('labo', centre.x - dirX / dl * 8, centre.z - dirZ / dl * 8, 14);
+      else if (P.ere >= 5 && count('defense') < Math.max(1, pr.turrets)) build('defense', centre.x + dirX / dl * 11, centre.z + dirZ / dl * 11, 6);
+      else if (P.ere >= 5 && pr.wonder && count('ascenseur') < 1 && P.minerai >= 900 && P.eau >= 900 && P.solarite >= 500 && P.energie >= 450) build('ascenseur', centre.x - dirX / dl * 14, centre.z - dirZ / dl * 14, 16);
       else if (pr.scouts && casernesDone && count('arene') < 1 && workers.length >= 12) build('arene', centre.x + dirX / dl * 4, centre.z + dirZ / dl * 4, 12);
       else if (casernesDone && count('tourelle') < pr.turrets) build('tourelle', centre.x + dirX / dl * 13, centre.z + dirZ / dl * 13, 3);
     }
@@ -211,7 +227,15 @@ export class Ai {
     const armyCap = Math.min(pr.cap, this.threshold + 6);
     for (const c of this.mine('caserne')) {
       if (!c.done || c.queue.length >= 2 || army.length + c.queue.length >= armyCap) continue;
-      if (wantAge && this.level === 'normal' && army.length >= Math.ceil(this.threshold * 0.6)) continue;   // le niveau Normal met de côté pour l'ère 2
+      if ((wantAge && this.level === 'normal' && army.length >= Math.ceil(this.threshold * 0.6)) || (wantOldAge && army.length >= Math.ceil(this.threshold * 0.5))) continue;   // on met de côté pour l'âge suivant   // le niveau Normal met de côté pour l'âge suivant
+      if (P.ere <= 2) {
+        // Âges anciens : miliciens, guerriers à la hache contre la cavalerie, champions au Moyen Âge.
+        const foeCav = sim.units.filter((u) => sim.foe(u.owner, me) && (u.kind === 'cavalier' || u.kind === 'chevalier')).length;
+        const k = foeCav >= 2 && nKind('hachier') < foeCav + 1 ? 'hachier' : ok('champion') && nKind('champion') < Math.ceil(army.length / 3) ? 'champion' : nKind('hachier') < Math.floor(army.length / 5) ? 'hachier' : 'milicien';
+        if (afford(UNITS[k].cout)) sim.issue({ type: 'train', b: c.id, kind: k });
+        if (foeCentre && !c.rally) { const dx = foeCentre.x - c.x, dz = foeCentre.z - c.z, l = Math.hypot(dx, dz) || 1; sim.issue({ type: 'rally', b: c.id, x: c.x + dx / l * 9, z: c.z + dz / l * 9, node: -1 }); }
+        continue;
+      }
       if (want3 && army.length >= Math.ceil(this.threshold * 0.6) && !this.attacking) continue;                // on économise pour l'ère 3
       // Contre les blindés adverses : quelques anti-blindages.
       const foeArmor = sim.units.filter((u) => sim.foe(u.owner, me) && (u.kind === 'blinde' || u.kind === 'artillerie')).length;
@@ -224,6 +248,27 @@ export class Ai {
       if (foeCentre && !c.rally) { const dx = foeCentre.x - c.x, dz = foeCentre.z - c.z, l = Math.hypot(dx, dz) || 1; sim.issue({ type: 'rally', b: c.id, x: c.x + dx / l * 9, z: c.z + dz / l * 9, node: -1 }); }
     }
 
+    // Âges anciens : archers (au plus 40 % de l'armée), cavalerie, engins de siège.
+    for (const a of this.mine('archerie')) {
+      if (!a.done || a.queue.length >= 1 || army.length >= armyCap || !dispo(BUILDINGS.archerie, P.ere)) continue;
+      if (wantOldAge && army.length >= Math.ceil(this.threshold * 0.5)) continue;
+      if (nKind('archer') + nKind('arbaletrier') > army.length * 0.4 + 1) continue;
+      const k = ok('arbaletrier') ? 'arbaletrier' : 'archer';
+      if (afford(UNITS[k].cout)) sim.issue({ type: 'train', b: a.id, kind: k });
+    }
+    for (const e of this.mine('ecurie')) {
+      if (!e.done || e.queue.length >= 1 || army.length >= armyCap || !dispo(BUILDINGS.ecurie, P.ere)) continue;
+      if (wantOldAge && army.length >= Math.ceil(this.threshold * 0.5)) continue;
+      if (nKind('cavalier') + nKind('chevalier') > army.length * 0.35 + 1) continue;
+      const k = ok('chevalier') && P.minerai >= 50 ? 'chevalier' : 'cavalier';
+      if (afford(UNITS[k].cout)) sim.issue({ type: 'train', b: e.id, kind: k });
+    }
+    for (const w of this.mine('atelierSiege')) {
+      if (!w.done || w.queue.length >= 1 || army.length >= armyCap || !dispo(BUILDINGS.atelierSiege, P.ere)) continue;
+      if (wantOldAge || nKind('belier') + nKind('catapulte') >= (this.level === 'facile' ? 1 : 3)) continue;
+      const k = nKind('belier') < 1 ? 'belier' : 'catapulte';
+      if (afford(UNITS[k].cout)) sim.issue({ type: 'train', b: w.id, kind: k });
+    }
     for (const f of this.mine('usine')) {
       if (!f.done || f.queue.length >= 1 || army.length >= armyCap) continue;
       if (want3 && army.length >= Math.ceil(this.threshold * 0.6) && !this.attacking) continue;
@@ -242,7 +287,7 @@ export class Ai {
       if (!a.done || a.queue.length >= 1 || army.length >= armyCap) continue;
       if (want3 && army.length >= Math.ceil(this.threshold * 0.6) && !this.attacking) continue;
       const n = army.filter((u) => u.kind === 'marteleur').length;
-      const kind = P.ere >= 3 && P.solarite >= 60 ? 'aether' : P.ere >= 2 ? 'sabreur' : n < Math.floor(army.length / 6) + 1 ? 'marteleur' : 'lame';
+      const kind = P.ere >= 5 && P.solarite >= 60 ? 'aether' : P.ere >= 4 ? 'sabreur' : n < Math.floor(army.length / 6) + 1 ? 'marteleur' : 'lame';
       if (afford(UNITS[kind].cout)) sim.issue({ type: 'train', b: a.id, kind });
     }
     // Atelier mécanique : araignées et Strikers.
@@ -250,7 +295,7 @@ export class Ai {
       if (!w.done || w.queue.length >= 1 || army.length >= armyCap) continue;
       if (want3 && army.length >= Math.ceil(this.threshold * 0.6) && !this.attacking) continue;
       const m = army.filter((u) => u.kind.startsWith('striker') || u.kind === 'cogneur').length;
-      const kind = P.ere >= 3 && P.solarite >= 80 ? (m % 2 ? 'strikerMissiles' : 'strikerAssaut') : m < 2 ? 'strikerLaser' : army.filter((u) => u.kind === 'araignee').length < 2 ? 'araignee' : 'cogneur';
+      const kind = P.ere >= 5 && P.solarite >= 80 ? (m % 2 ? 'strikerMissiles' : 'strikerAssaut') : m < 2 ? 'strikerLaser' : army.filter((u) => u.kind === 'araignee').length < 2 ? 'araignee' : 'cogneur';
       if (afford(UNITS[kind].cout)) sim.issue({ type: 'train', b: w.id, kind });
     }
     // Cartes d'îles : une navette pour 8 soldats (au plus 2).
@@ -266,13 +311,13 @@ export class Ai {
       const fighter = (['challenger', 'spitfire'] as UnitKind[]).find((k) => ok(k));
       if (big && nKind(big) < 2 && P.solarite >= 120) sim.issue({ type: 'train', b: h.id, kind: big });
       else if (fighter && foeAir >= 1 && nKind(fighter) < foeAir + 1) sim.issue({ type: 'train', b: h.id, kind: fighter });
-      else if (P.ere >= 3 && army.filter((u) => u.kind === 'cuirasse').length < 3 && P.solarite >= 160 && afford(UNITS.cuirasse.cout)) sim.issue({ type: 'train', b: h.id, kind: 'cuirasse' });
+      else if (P.ere >= 5 && army.filter((u) => u.kind === 'cuirasse').length < 3 && P.solarite >= 160 && afford(UNITS.cuirasse.cout)) sim.issue({ type: 'train', b: h.id, kind: 'cuirasse' });
       else if (foeAir >= 2 && army.filter((u) => u.kind === 'intercepteur').length < foeAir && afford(UNITS.intercepteur.cout)) sim.issue({ type: 'train', b: h.id, kind: 'intercepteur' });
       else if (army.filter((u) => u.kind === 'drone').length < 4 && afford(UNITS.drone.cout)) sim.issue({ type: 'train', b: h.id, kind: 'drone' });
     }
     for (const l of this.mine('labo')) {
       if (!l.done || l.task || want3) continue;
-      const key = ['degats', 'armure', 'moteurs', 'recolte', ...(P.ere >= 3 ? ['nano', 'surcharge'] : [])].find((k) => !P.research.has(k));
+      const key = ['degats', 'armure', 'moteurs', 'recolte', ...(P.ere >= 5 ? ['nano', 'surcharge'] : [])].find((k) => !P.research.has(k));
       if (key && afford(RESEARCH[key].cout)) sim.issue({ type: 'research', b: l.id, key });
     }
 
@@ -334,9 +379,9 @@ export class Ai {
         if (target && idle.length) sim.issue({ type: 'amove', ids: idle.map((u) => u.id), x: target.x, z: target.z, formation: 'libre' });
         if (sep) this.ferryStep(army.filter((u) => !reach(u) && u.board < 0 && u.tu < 0 && u.tb < 0), navettes);
       }
-    } else if ((army.length >= this.threshold && sim.tick >= pr.first) || (foeWonder && army.length >= 3)
+    } else if ((army.length >= this.threshold && sim.tick >= first) || (foeWonder && army.length >= 3)
       // Population au plafond (les blindés comptent double) : l'armée ne grossira plus, elle part telle quelle.
-      || (sim.tick >= pr.first && army.length >= 3 && P.pop + 2 > P.popCap && (P.popCap >= GAME.popMax || P.popCap >= pr.cap + pr.workers + 6))) this.attacking = true;
+      || (sim.tick >= first && army.length >= 3 && P.pop + 2 > P.popCap && (P.popCap >= GAME.popMax || P.popCap >= pr.cap + pr.workers + 6))) this.attacking = true;
     if (!this.attacking && sep) for (const nv of navettes) if (nv.cargo.length && !nv.moving && !nv.drop) sim.issue({ type: 'unload', id: nv.id, x: this.shore!.x, z: this.shore!.z });
   }
 

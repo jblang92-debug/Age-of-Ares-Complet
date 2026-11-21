@@ -18,7 +18,7 @@ for (let a = 0; a < 4000; a++) {
 const KINDS = Object.keys(UNITS).filter((k) => UNITS[k].degats > 0 && !['ouvrier', 'ingenieur', 'navette', 'eclaireur'].includes(k)) as UnitKind[];
 function fight(a: UnitKind, b: UnitKind): number {
   const sim = new Sim(g.terrain, g.objects);
-  for (const p of sim.players) p.ere = 3;
+  for (const p of sim.players) p.ere = 5;
   const na = Math.max(1, Math.round(BUDGET / value(a))), nb = Math.max(1, Math.round(BUDGET / value(b)));
   const A = [], B = [];
   for (let i = 0; i < na; i++) A.push(sim.spawn(a, 0, X - 14 + (i % 3) * 1.6, Z - 4 + Math.floor(i / 3) * 1.6));

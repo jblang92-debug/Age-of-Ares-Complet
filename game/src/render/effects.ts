@@ -94,17 +94,18 @@ const C = (h: number) => new THREE.Color(h);
 const FIRE_HOT = C(0xfff2b0), FIRE = C(0xff8a2a), FIRE_END = C(0x8a1c06), SMOKE_D = C(0x221d1a), SMOKE_L = C(0x6b625b), DUST = C(0xa86a42), DUST_L = C(0xc99a72);
 const SPARK = C(0xffe08a), SPARK_END = C(0xff5a1a), ENERGY = C(0x9ff4ff), ENERGY_END = C(0x2a7cff);
 const DEBRIS = [C(0x3a3e45), C(0x55595f), C(0x2a2622), C(0x6d5444)];
+const ARROW = C(0x3a2a1c), STONE = C(0x8d8780);
 const SHELL_RED = C(0xb3261e), BULLET = C(0xffe9a0), SHELL = C(0xffb347), MISSILE = C(0xfff4d0), LASER = C(0x37e6ff), PLASMA_G = C(0x6dff8e), PLASMA_B = C(0x5aa8ff), PLASMA_O = C(0xff9a3a), PLASMA_V = C(0xc77dff), BEAM_O = C(0xff7a2a), BEAM_R = C(0xff3030);
 /** Armes à distance : chacune a son projectile, son éclair et son impact. */
-export type Weapon = 'fusil' | 'pompe' | 'mitrailleuse' | 'canon' | 'roquette' | 'artillerie' | 'laser' | 'plasma' | 'plasmaBleu' | 'tourelle' | 'salve' | 'assaut' | 'cuirasse' | 'flak' | 'rayon' | 'rayonRouge' | 'precision' | 'grenade' | 'bombes';
+export type Weapon = 'fusil' | 'pompe' | 'mitrailleuse' | 'canon' | 'roquette' | 'artillerie' | 'laser' | 'plasma' | 'plasmaBleu' | 'tourelle' | 'salve' | 'assaut' | 'cuirasse' | 'flak' | 'rayon' | 'rayonRouge' | 'precision' | 'grenade' | 'bombes' | 'fleche' | 'pierre';
 
 export class Effects {
   private tracers: THREE.InstancedMesh;
   private tr: { t: number; life: number; m: THREE.Matrix4 }[] = [];
   private fire: Pool; private smoke: Pool; private debris: Pool; private sparks: Pool; private rings: Pool; private scorch: Pool;
-  private bolts: Pool; private beams: Pool; private glows: Pool;
+  private bolts: Pool; private beams: Pool; private glows: Pool; private arrows: Pool;
   /** Projectiles suivis image par image (missiles, obus d'artillerie). */
-  private proj: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; t: number; life: number; kind: 'missile' | 'obus'; size: number; last: THREE.Vector3 }[] = [];
+  private proj: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; t: number; life: number; kind: 'missile' | 'obus' | 'fleche' | 'pierre'; size: number; last: THREE.Vector3 }[] = [];
   /** Impact d'un projectile (pour le son) : position et taille. */
   onImpact?: (x: number, z: number, size: number) => void;
   private later: { t: number; fn: () => void }[] = [];
@@ -126,6 +127,7 @@ export class Effects {
     this.debris = new Pool(scene, new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.6, metalness: 0.5, flatShading: true, transparent: true }), 500, false, ground);
     this.scorch = new Pool(scene, new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: softTexture('scorch'), color: 0xffffff, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), 140);
     this.debris.mesh.castShadow = true;
+    this.arrows = new Pool(scene, new THREE.BoxGeometry(0.06, 0.06, 1), new THREE.MeshBasicMaterial({ transparent: true }), 300, true);
     this.bolts = new Pool(scene, new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(add), 600, true);
     this.beams = new Pool(scene, new THREE.CylinderGeometry(0.5, 0.5, 1, 8, 1, true).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ ...add, side: THREE.DoubleSide }), 160);
     this.glows = new Pool(scene, new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ ...add, map: softTexture('scorch') }), 400, false, undefined, true);
@@ -193,6 +195,15 @@ export class Effects {
       case 'precision': this.flash(from(0), dir, 0.3, FIRE_HOT); this.bullet(from(0), jit(0.05), 160, WHITE, 0.06); this.bolts.add({ x: a.x, y: a.y, z: a.z, vx: d.x * 4, vy: d.y * 4, vz: d.z * 4, s0: 0.03, s1: 0.03, life: 0.25, c0: BULLET, c1: BULLET, a0: 0.5, a1: 0 }); break;
       case 'grenade': this.flash(from(0), dir, 0.3, FIRE_HOT); this.proj.push({ a: from(0), b: jit(0.4), c: a.clone().add(b).multiplyScalar(0.5).add(new THREE.Vector3(0, 1.5 + dist * 0.3, 0)), t: 0, life: 0.5 + dist / 25, kind: 'obus', size: 0.55, last: from(0) }); break;
       case 'bombes': for (let i = 0; i < 3; i++) at(i * 0.15, () => { const p0 = a.clone().add(new THREE.Vector3(rnd(-0.5, 0.5), -0.4, rnd(-0.5, 0.5))), p1 = jit(1.3); this.proj.push({ a: p0, b: p1, c: p0.clone().lerp(p1, 0.3), t: 0, life: 0.55, kind: 'obus', size: 0.75, last: p0.clone() }); }); break;
+      case 'fleche': {   // flèche ou carreau : arc tendu, sans flamme
+        const c = a.clone().add(b).multiplyScalar(0.5).add(new THREE.Vector3(0, 0.6 + dist * 0.12, 0));
+        this.proj.push({ a: from(0), b: jit(0.35), c, t: 0, life: 0.25 + dist / 32, kind: 'fleche', size: 0.3, last: from(0) }); break;
+      }
+      case 'pierre': {   // catapulte : un bloc de pierre en cloche, nuage de poussière au départ
+        this.smoke.add({ ...from(0), vy: 0.8, s0: 0.5, s1: 1.6, life: 1.2, c0: DUST_L, c1: DUST_L, a0: 0.5, a1: 0 });
+        const c = a.clone().add(b).multiplyScalar(0.5).add(new THREE.Vector3(0, 3.5 + dist * 0.5, 0));
+        this.proj.push({ a: from(0), b: jit(0.6), c, t: 0, life: 0.9 + dist / 28, kind: 'pierre', size: 1, last: from(0) }); break;
+      }
       case 'rayonRouge': this.beam(from(0), jit(0.1), BEAM_R, 0.28, 0.25); break;
     }
   }
@@ -274,16 +285,30 @@ export class Effects {
         this.glows.add({ x: m.last.x, y: m.last.y, z: m.last.z, s0: 0.9, s1: 0.3, life: 0.12, c0: FIRE_HOT, c1: FIRE, a0: 0.9, a1: 0 });
         this.fire.add({ x: m.last.x, y: m.last.y, z: m.last.z, s0: 0.45, s1: 0.1, life: 0.14, c0: FIRE_HOT, c1: FIRE });
         for (const k of [0, 0.5]) { const q = m.last.clone().lerp(p, k); this.smoke.add({ x: q.x, y: q.y, z: q.z, vx: rnd(-0.2, 0.2), vy: rnd(0.1, 0.4), vz: rnd(-0.2, 0.2), s0: 0.35, s1: 1.2, life: rnd(1.1, 1.6), c0: C(0xd8cfc4), c1: DUST_L, a0: 0.7, a1: 0 }); }
+      } else if (m.kind === 'fleche') {
+        // Flèche : un trait sombre orienté selon sa vitesse.
+        this.arrows.add({ x: p.x, y: p.y, z: p.z, vx: vel.x * 0.04, vy: vel.y * 0.04, vz: vel.z * 0.04, s0: 1, s1: 1, life: 0.03, c0: ARROW, c1: ARROW, a0: 1, a1: 1 });
+      } else if (m.kind === 'pierre') {
+        this.debris.add({ x: p.x, y: p.y, z: p.z, s0: 0.55, s1: 0.55, life: 0.03, c0: STONE, c1: STONE, a0: 1, a1: 1 });
+        this.smoke.add({ x: m.last.x, y: m.last.y, z: m.last.z, s0: 0.25, s1: 0.6, life: 0.4, c0: DUST_L, c1: DUST_L, a0: 0.25, a1: 0 });
       } else {
         this.bolts.add({ x: p.x, y: p.y, z: p.z, vx: vel.x * 0.02, vy: vel.y * 0.02, vz: vel.z * 0.02, s0: 0.28, s1: 0.28, life: 0.04, c0: SHELL, c1: SHELL, a0: 1, a1: 1 });
         this.glows.add({ x: p.x, y: p.y, z: p.z, s0: 0.7, s1: 0.2, life: 0.15, c0: SHELL, c1: FIRE, a0: 0.6, a1: 0 });
       }
       m.last.copy(p);
-      if (u >= 1) { this.impact(m.b.x, m.b.y - 0.4, m.b.z, m.size * 1.3); this.onImpact?.(m.b.x, m.b.z, m.size); return false; }
+      if (u >= 1) {
+        if (m.kind === 'fleche') { this.dust(m.b.x, m.b.y - 0.6, m.b.z, 0.3); return false; }
+        if (m.kind === 'pierre') { this.dust(m.b.x, m.b.y - 0.4, m.b.z, 1.4); for (let i = 0; i < 6; i++) this.debris.add({ x: m.b.x, y: m.b.y, z: m.b.z, vx: rnd(-4, 4), vy: rnd(2, 6), vz: rnd(-4, 4), s0: 0.25, s1: 0.2, life: 1.2, g: 14, c0: STONE, c1: STONE, a0: 1, a1: 1 }); this.onImpact?.(m.b.x, m.b.z, -1); return false; }
+        this.impact(m.b.x, m.b.y - 0.4, m.b.z, m.size * 1.3); this.onImpact?.(m.b.x, m.b.z, m.size); return false;
+      }
       return true;
     });
   }
 
+  /** Nuage de poussière (flèche fichée au sol, pierre qui s'écrase). */
+  dust(x: number, y: number, z: number, r: number) {
+    for (let i = 0; i < (r > 1 ? 6 : 2); i++) this.smoke.add({ x: x + rnd(-r, r) * 0.4, y, z: z + rnd(-r, r) * 0.4, vx: rnd(-0.6, 0.6), vy: rnd(0.3, 1), vz: rnd(-0.6, 0.6), s0: r * 0.4, s1: r * 1.5, life: rnd(0.8, 1.4), c0: DUST_L, c1: DUST_L, a0: 0.55, a1: 0 });
+  }
   /** Étincelles d'un coup au corps à corps. */
   spark(x: number, y: number, z: number, heavy = false) {
     for (let i = 0; i < (heavy ? 10 : 5); i++) this.sparks.add({ x, y, z, vx: rnd(-4, 4), vy: rnd(1, heavy ? 5 : 3.5), vz: rnd(-4, 4), s0: heavy ? 1.1 : 0.7, s1: 0.3, life: rnd(0.12, 0.3), g: 14, c0: SPARK, c1: SPARK_END });
@@ -387,6 +412,6 @@ export class Effects {
       for (const l of due) l.fn();
     }
     if (this.proj.length) this.flyProjectiles(dt);
-    for (const p of [this.fire, this.smoke, this.debris, this.sparks, this.rings, this.scorch, this.bolts, this.beams, this.glows]) p.update(dt);
+    for (const p of [this.fire, this.smoke, this.debris, this.sparks, this.rings, this.scorch, this.bolts, this.beams, this.glows, this.arrows]) p.update(dt);
   }
 }

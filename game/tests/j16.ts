@@ -13,7 +13,7 @@ const NEW: UnitKind[] = ['lame', 'marteleur', 'sabreur', 'aether', 'araignee', '
 { // Production : chaque bâtiment fabrique ses unités, selon l'ère.
   const sim = new Sim(g.terrain, g.objects); sim.sandbox = 0;
   const c = sim.buildings.find((b) => b.owner === 0 && b.kind === 'centre')!;
-  sim.players[0].ere = 3;
+  sim.players[0].ere = 5;
   const place = (kind: string, dx: number) => {
     for (let a = 0; a < 24; a++) for (const d of [13, 17, 21]) {
       const x = c.x + Math.cos(a / 24 * 6.28 + dx) * d, z = c.z + Math.sin(a / 24 * 6.28 + dx) * d;
@@ -26,10 +26,10 @@ const NEW: UnitKind[] = ['lame', 'marteleur', 'sabreur', 'aether', 'araignee', '
   };
   const ar = place('arene', 0), at = place('atelier', 3);
   check('Salle d\'armes et Atelier se posent', !!ar && !!at);
-  sim.players[0].ere = 1;
+  sim.players[0].ere = 3;
   sim.issue({ type: 'train', b: ar.id, kind: 'sabreur' }); run(sim, 1);
   check('le Sabreur demande l\'ère 2', ar.queue.length === 0);
-  sim.players[0].ere = 3;
+  sim.players[0].ere = 5;
   for (const k of NEW) { sim.issue({ type: 'train', b: UNITS[k].produitA === 'arene' ? ar.id : at.id, kind: k }); run(sim, 120); }
   run(sim, 600);
   const made = NEW.filter((k) => sim.units.some((u) => u.owner === 0 && u.kind === k));
@@ -100,7 +100,7 @@ const NEW: UnitKind[] = ['lame', 'marteleur', 'sabreur', 'aether', 'araignee', '
 }
 { // L'IA Difficile s'en sert : Salle d'armes dès l'ère 1, Atelier mécanique à l'ère 2.
   const play = (rich: boolean, ticks: number) => {
-    const sim = new Sim(g.terrain, g.objects); if (rich) { sim.setRich(); for (const P of sim.players) { P.ere = 2; if (!P.neutral) P.faction = 3; } }
+    const sim = new Sim(g.terrain, g.objects); if (rich) { sim.setRich(); for (const P of sim.players) { P.ere = 4; if (!P.neutral) P.faction = 3; } }
     const ais = [new Ai(sim, 0, 'difficile'), new Ai(sim, 1, 'difficile')], seen = new Set<string>();
     for (let t = 0; t < ticks && sim.winner < 0; t++) { for (const a of ais) a.step(); sim.step(); sim.events.length = 0; if (t % 50 === 0) { for (const b of sim.buildings) seen.add(b.kind); for (const u of sim.units) seen.add(u.kind); } }
     return seen;

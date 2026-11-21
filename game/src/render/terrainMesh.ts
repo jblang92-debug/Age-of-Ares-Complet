@@ -51,7 +51,11 @@ export function buildTerrainMesh(map: TerrainMap): THREE.Object3D {
     map: tex('sand_diff.jpg', true), normalMap: tex('sand_nor.jpg', false),
     normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.95, metalness: 0, vertexColors: true,
   });
+  /** 1 = prairies des âges anciens, 0 = désert de l'âge galactique (fixé par World.setAge). */
+  const uGreen = { value: 0 };
+  mat.userData.uniforms = { uGreen };
   mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uGreen = uGreen;
     shader.uniforms.tRock = { value: rock };
     shader.uniforms.uSandTint = { value: new THREE.Color(1.5, 0.92, 0.62) };
     shader.uniforms.uRockTint = { value: new THREE.Color(0.42, 0.21, 0.15) };
@@ -59,7 +63,7 @@ export function buildTerrainMesh(map: TerrainMap): THREE.Object3D {
       .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nvarying vec3 vWNrm;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWPos = position;\nvWNrm = normal;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D tRock;\nuniform vec3 uSandTint;\nuniform vec3 uRockTint;\nvarying vec3 vWPos;\nvarying vec3 vWNrm;')
+      .replace('#include <common>', '#include <common>\nuniform sampler2D tRock;\nuniform float uGreen;\nuniform vec3 uSandTint;\nuniform vec3 uRockTint;\nvarying vec3 vWPos;\nvarying vec3 vWNrm;')
       .replace('#include <map_fragment>', `
         if (vWPos.y < -8.0) discard;                       // le vide intersidéral : on voit les étoiles au travers
         vec3 wn = normalize(vWNrm);
@@ -70,11 +74,19 @@ export function buildTerrainMesh(map: TerrainMap): THREE.Object3D {
         vec3 rockC = (texture2D(tRock, vWPos.zy * vec2(0.09, 0.16)).rgb * bw.x + texture2D(tRock, vWPos.xy * vec2(0.09, 0.16)).rgb * bw.y) * uRockTint;
         // strates horizontales dans la falaise
         rockC *= 0.94 + 0.06 * sin(vWPos.y * 7.0 + sin(vWPos.x * 0.21 + vWPos.z * 0.17) * 2.0);
+        // Âges anciens : herbe (teinte tirée de la même texture), roche grise, plages près de la mer.
+        float lum = dot(sandC, vec3(0.3, 0.45, 0.25));
+        float grassVar = 0.5 + 0.5 * sin(vWPos.x * 0.07 + sin(vWPos.z * 0.05) * 2.0) * sin(vWPos.z * 0.06 + 1.3);
+        vec3 grassC = mix(vec3(0.11, 0.22, 0.05), vec3(0.21, 0.30, 0.07), grassVar) * (0.6 + lum * 0.5);
+        float beach = 1.0 - smoothstep(-1.7, -0.55, vWPos.y);
+        grassC = mix(grassC, vec3(0.62, 0.53, 0.36) * (0.7 + lum * 0.4), beach);
+        sandC = mix(sandC, grassC, uGreen);
+        rockC = mix(rockC, (rockC / uRockTint) * vec3(0.42, 0.39, 0.35), uGreen);
         diffuseColor.rgb *= mix(sandC, rockC, rockF) * mix(0.18, 1.0, smoothstep(-8.0, -0.6, vWPos.y));
       `);
   };
   // Découpage en morceaux de 48 m : seuls ceux qui sont à l'écran (et dans la zone d'ombre) sont dessinés.
-  const group = new THREE.Group(); group.name = 'terrain';
+  const group = new THREE.Group(); group.name = 'terrain'; group.userData.mat = mat;
   const P = geo.getAttribute('position').array as Float32Array, N = geo.getAttribute('normal').array as Float32Array;
   const C = 48;
   for (let j0 = 0; j0 < n - 1; j0 += C) for (let i0 = 0; i0 < n - 1; i0 += C) {

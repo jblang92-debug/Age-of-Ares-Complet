@@ -13,7 +13,7 @@ import type { Controller } from '../input/controller';
 import { orient } from './orient';
 import type { Sim, Formation, Posture, UnitKind } from '../sim/sim';
 import { unitClass } from '../sim/sim';
-import { UNITS, BUILDINGS, RESEARCH } from '../data/rules';
+import { UNITS, BUILDINGS, RESEARCH, nomBat, nomUnit, dispo } from '../data/rules';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const UI = (f: string) => BASE + 'assets/ui/' + f;
@@ -24,6 +24,7 @@ const ICONS = new Set(['b_centre', 'b_depotMinier', 'b_centrale', 'b_habitat', '
   'u_artillerie', 'u_cuirasse', 'b_defense', 'b_ascenseur', 't_reparation', 't_nano', 't_surcharge', 'a_ere3',
   'b_arene', 'b_atelier', 'u_lame', 'u_marteleur', 'u_sabreur', 'u_aether', 'u_araignee', 'u_araigneeCanon', 'u_cogneur', 'u_strikerLaser', 'u_strikerMissiles', 'u_strikerAssaut',
   'u_tireur', 'u_grenadier', 'u_garde', 'u_commando', 'u_vigile', 'u_exo', 'u_sam', 'u_chasseurChars', 'u_avc', 'u_huit', 'u_canonAA', 'u_challenger', 'u_spitfire', 'u_zenith', 'u_pancake', 'u_executioner', 'u_imperial',
+  'u_milicien', 'u_hachier', 'u_champion', 'u_archer', 'u_arbaletrier', 'u_cavalier', 'u_chevalier', 'u_belier', 'u_catapulte', 'b_archerie', 'b_ecurie', 'b_atelierSiege',
   'a_stop', 'a_repli', 'a_agressive', 'a_defensive', 'a_tenir', 'a_passive', 'a_debarquer', 'a_reparer', 'a_capturer', 'a_transporter']);
 /** Recherches sans illustration propre : on réutilise une icône proche. */
 const ALIAS: Record<string, string> = { t_barriere: 'b_bouclier' };
@@ -84,7 +85,7 @@ export class Hud {
     $('r-energie').textContent = String(d.energie);
     $('r-solarite').textContent = String(d.solarite);
     $('r-pop').textContent = `${d.ouvriers + d.eclaireurs * 2}/${GAME.popCentre + 5}`;
-    $('r-ere').textContent = `Ère 1 · ${GAME.eres[0].nom}`;
+    $('r-ere').textContent = `Âge 1 · ${GAME.eres[0].nom}`;
     this.bg = this.paintBackground();
     // Illustrations : chargées par le script (adresse de base, et version en un seul fichier).
     document.querySelectorAll<HTMLImageElement>('img[data-ui]').forEach((img) => {
@@ -144,11 +145,11 @@ export class Hud {
     const cost = (c: object) => Object.entries(c as Record<string, number>).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(', ');
     const CATS: Record<string, { nom: string; items: string[] }> = {
       eco: { nom: 'Économie', items: ['habitat', 'stationEau', 'depotMinier', 'centrale', 'quai', 'raffinerie', 'recycleur'] },
-      armee: { nom: 'Armée', items: ['caserne', 'arene', 'usine', 'atelier', 'hangar', 'labo', 'ascenseur'] },
+      armee: { nom: 'Armée', items: ['caserne', 'archerie', 'ecurie', 'atelierSiege', 'arene', 'usine', 'atelier', 'hangar', 'labo', 'ascenseur'] },
       defense: { nom: 'Défense', items: ['tourelle', 'mur', 'porte', 'tourelleAA', 'bouclier', 'defense'] },
     };
     let cat = 'eco';
-    const SHORT: Record<string, string> = { habitat: 'Habitat', stationEau: 'Station d\'eau', depotMinier: 'Dépôt minier', centrale: 'Centrale', quai: 'Quai orbital', caserne: 'Caserne', tourelle: 'Tourelle', mur: 'Mur', porte: 'Porte', raffinerie: 'Raffinerie', recycleur: 'Recycleur', usine: 'Usine', hangar: 'Hangar', arene: 'Salle d\'armes', atelier: 'Atelier méca', labo: 'Laboratoire', tourelleAA: 'Anti-aérien', bouclier: 'Bouclier', defense: 'Défense orbitale', ascenseur: 'Ascenseur orbital' };
+    const SHORT: Record<string, string> = { habitat: 'Habitat', stationEau: 'Station d\'eau', depotMinier: 'Dépôt minier', centrale: 'Centrale', quai: 'Quai orbital', caserne: 'Caserne', tourelle: 'Tourelle', mur: 'Mur', porte: 'Porte', raffinerie: 'Raffinerie', recycleur: 'Recycleur', usine: 'Usine', hangar: 'Hangar', arene: 'Salle d\'armes', atelier: 'Atelier méca', archerie: 'Archerie', ecurie: 'Écurie', atelierSiege: 'Atelier de siège', labo: 'Laboratoire', tourelleAA: 'Anti-aérien', bouclier: 'Bouclier', defense: 'Défense orbitale', ascenseur: 'Ascenseur orbital' };
     const short = (c: object) => cost(c).replace(' minerai', ' min.').replace('energie', 'én.').replace('solarite', 'sol.');
     let sig = '', killArm = false, killTimer = 0, folded = false, batch = 1;
     // Le panneau occupe le coin bas gauche sans passer sous les boutons rapides et la mini-carte ;
@@ -177,11 +178,11 @@ export class Hud {
         const one = n === 1 ? sim.get([...ctrl.selection][0]) : undefined;
         const vet = one ? (one.vet ? ` <span class="vet">${'★'.repeat(one.vet)}</span>` : '') + (one.kind !== 'ouvrier' ? ` <small>· ${one.xp} élimination${one.xp > 1 ? 's' : ''}</small>` : '') : '';
         const kinds = Object.keys(count);
-        html = `<div id="sel-info">${n} unité${n > 1 ? 's' : ''}${vet} <small>· ${Object.entries(count).map(([k, c]) => `${c} ${UNITS[k].nom.toLowerCase()}${c > 1 ? 's' : ''}`).join(', ')}</small>${kinds.length === 1 ? ` <button data-sheet="${kinds[0]}" class="info" title="Fiche de l'unité">ⓘ</button>` : ''}</div>`;
+        html = `<div id="sel-info">${n} unité${n > 1 ? 's' : ''}${vet} <small>· ${Object.entries(count).map(([k, c]) => `${c} ${nomUnit(k, sim.players[ctrl.player]?.ere ?? 3).toLowerCase()}${c > 1 ? 's' : ''}`).join(', ')}</small>${kinds.length === 1 ? ` <button data-sheet="${kinds[0]}" class="info" title="Fiche de l'unité">ⓘ</button>` : ''}</div>`;
         if (count.ouvrier) {
           const ere = sim.players[ctrl.player].ere;
           html += `<div class="row tabs">${Object.entries(CATS).map(([k, c]) => `<button data-cat="${k}" class="${cat === k ? 'on' : ''}">${c.nom}</button>`).join('')}</div>`;
-          html += `<div class="row grid">${CATS[cat].items.filter((k) => BUILDINGS[k].ere <= ere).map((k) => ib(`data-build="${k}" title="${BUILDINGS[k].nom} : ${cost(sim.buildCost(ctrl.player, k))}"`, 'b_' + k, SHORT[k], sim.buildCost(ctrl.player, k))).join('')}</div>`;
+          html += `<div class="row grid">${CATS[cat].items.filter((k) => dispo(BUILDINGS[k], ere)).map((k) => ib(`data-build="${k}" title="${nomBat(k, ere)} : ${cost(sim.buildCost(ctrl.player, k))}"`, 'b_' + k, ere <= 2 && nomBat(k, ere) !== BUILDINGS[k].nom ? nomBat(k, ere) : SHORT[k], sim.buildCost(ctrl.player, k))).join('')}</div>`;
         }
         if (n > 1 && Object.keys(count).some((k) => k !== 'ouvrier')) html += `<div class="row">${(['libre', 'ligne', 'colonne', 'carre'] as Formation[]).map((f) => `<button data-f="${f}" class="${ctrl.formation === f ? 'on' : ''}">${f === 'carre' ? 'Carré' : f[0].toUpperCase() + f.slice(1)}</button>`).join('')}</div>`;
         if (Object.keys(count).some((k) => k !== 'ouvrier')) {
@@ -205,13 +206,13 @@ export class Hud {
         if (tips.length) html += `<div class="row grid">${tips.join('')}</div>`;
         html += `<div class="row g3"><button data-act="stop" class="ib cmd">${icon('a_stop')}Stop</button><button data-act="desel">Fermer</button><button data-act="kill" class="danger${killArm ? ' arm' : ''}">${killArm ? 'Confirmer ?' : 'Détruire'}</button></div>`;
       } else if (b) {
-        html = `<div id="sel-info">${BUILDINGS[b.kind].nom} <small id="b-info"></small></div>`;
+        html = `<div id="sel-info">${nomBat(b.kind, sim.players[b.owner]?.ere ?? 3)} <small id="b-info"></small></div>`;
         const P = sim.players[ctrl.player];
-        const makes = Object.entries(UNITS).filter(([, r]) => r.produitA === b.kind && r.ere <= P.ere && (r.faction === undefined || r.faction === P.faction));
+        const makes = Object.entries(UNITS).filter(([, r]) => r.produitA === b.kind && dispo(r, P.ere) && (r.faction === undefined || r.faction === P.faction));
         const queued = (k: string) => { const c = b.queue.filter((q) => q.kind === k).length; return (c ? `<em class="cnt">${c}</em>` : '') + (b.queue[0]?.kind === k ? `<span class="prog"><span id="prog-${k}"></span></span>` : ''); };
         if (makes.length && b.done) html += `<div class="row"><button data-act="batch" class="batch${batch > 1 ? ' on' : ''}" title="Produire par 5">×${batch}</button><small class="hint2">appui long sur une unité : sa fiche</small></div>`;
-        if (makes.length && b.done) html += `<div class="row grid">${makes.map(([k, r]) => ib(`data-train="${k}" title="${r.nom}"`, 'u_' + k, r.nom, r.cout, queued(k))).join('')}${b.kind === 'centre' && P.ere < 3 && !b.task ? ib('data-act="age"', P.ere === 1 ? 'a_ere' : 'a_ere3', 'Ère ' + (P.ere + 1), (GAME.eres[P.ere] as { cout: object }).cout) : ''}</div><div id="b-hint">Touche le sol${b.kind === 'centre' ? ' ou un gisement' : ''} pour fixer le point de ralliement.</div>`;
-        else if (b.kind === 'labo' && b.done && !b.task) html += `<div class="row grid">${Object.entries(RESEARCH).filter(([k, r]) => !P.research.has(k) && (r.ere ?? 2) <= P.ere).map(([k, r]) => ib(`data-research="${k}" title="${r.effet}"`, 't_' + k, r.nom, r.cout)).join('')}</div>`;
+        if (makes.length && b.done) html += `<div class="row grid">${makes.map(([k, r]) => ib(`data-train="${k}" title="${nomUnit(k, P.ere)}"`, 'u_' + k, nomUnit(k, P.ere), r.cout, queued(k))).join('')}${b.kind === 'centre' && P.ere < GAME.eres.length && !b.task ? ib('data-act="age"', P.ere >= 4 ? 'a_ere3' : 'a_ere', GAME.eres[P.ere].nom, (GAME.eres[P.ere] as { cout: object }).cout) : ''}</div><div id="b-hint">Touche le sol${b.kind === 'centre' ? ' ou un gisement' : ''} pour fixer le point de ralliement.</div>`;
+        else if (b.kind === 'labo' && b.done && !b.task) html += `<div class="row grid">${Object.entries(RESEARCH).filter(([k, r]) => !P.research.has(k) && (r.ere ?? 4) <= P.ere).map(([k, r]) => ib(`data-research="${k}" title="${r.effet}"`, 't_' + k, r.nom, r.cout)).join('')}</div>`;
         if ((b.kind === 'mur' || b.kind === 'porte') && b.owner === ctrl.player && P.research.has('barriere'))
           html += `<div class="row"><button data-act="ion" class="ib cmd${P.ion ? ' on' : ''}" title="Les appareils ennemis ne peuvent plus franchir tes murs et portes">${icon('t_barriere')}<span class="tx"><span class="nm">Barrière ionique</span><i>${P.ion ? 'activée · ' + sim.ionCost(ctrl.player) + ' én./s' : 'coupée · touche pour l\'activer'}</i></span></button></div>`;
         html += `<div class="row g3"><button data-act="desel">Fermer</button>${b.kind !== 'centre' ? `<button data-act="kill" class="danger${killArm ? ' arm' : ''}">${killArm ? 'Confirmer ?' : 'Détruire'}</button>` : ''}</div>`;
@@ -311,7 +312,7 @@ export class Hud {
     $('r-energie').textContent = String(Math.floor(P.energie)); $('r-solarite').textContent = String(Math.floor(P.solarite));
     $('r-pop').textContent = `${P.pop}/${P.popCap}`;
     if (this.qLabel) { const want = document.body.classList.contains('compact') ? 'Q : ' + this.qLabel.replace(' (auto)', '') : 'Qualité : ' + this.qLabel; if ($('btn-quality').textContent !== want) $('btn-quality').textContent = want; }
-    $('r-ere').textContent = document.body.classList.contains('compact') ? `Ère ${P.ere}` : `Ère ${P.ere} · ${GAME.eres[P.ere - 1].nom}${this.level ? (this.level.startsWith('#') ? ' · ' + this.level.slice(1) : ' · IA ' + this.level) : ''}`;
+    $('r-ere').textContent = document.body.classList.contains('compact') ? GAME.eres[P.ere - 1].nom : `Âge ${P.ere} · ${GAME.eres[P.ere - 1].nom}${this.level ? (this.level.startsWith('#') ? ' · ' + this.level.slice(1) : ' · IA ' + this.level) : ''}`;
     $('r-pop').parentElement!.classList.toggle('warn', P.pop >= P.popCap);
     const idle = sim.idleWorkers(ctrl.player).length;
     this.paintGroups();
@@ -435,7 +436,7 @@ export class Hud {
     const NAMES: Record<string, string> = { duel: '1 contre 1', ffa: '4 joueurs, chacun pour soi', equipes: '2 contre 2', facile: 'IA facile', normal: 'IA normale', difficile: 'IA difficile', industrielle: 'Industrielle', aeronavale: 'Aéronavale', frappe: 'Frappe' };
     const sum = () => {
       const K = MAP_KINDS.find((k) => k.key === sel.kind);
-      const bits = [NAMES[sel.players], NAMES[level], mode === 'spectateur' ? 'spectateur' : GAME.factions[+opts.faction || 0] + ' · doctrine ' + NAMES[opts.doctrine], `${K?.nom ?? ''} (${(SIZE_N[sel.size] ?? '').toLowerCase()})`,
+      const bits = [opts.epoque === 'moderne' ? 'départ à l\'âge moderne' : 'de l\'Antiquité à l\'âge galactique', NAMES[sel.players], NAMES[level], mode === 'spectateur' ? 'spectateur' : GAME.factions[+opts.faction || 0] + ' · doctrine ' + NAMES[opts.doctrine], `${K?.nom ?? ''} (${(SIZE_N[sel.size] ?? '').toLowerCase()})`,
         opts.brouillard === 'non' ? 'sans brouillard' : 'brouillard', opts.duree === 'blitz' ? 'Blitz 10 min' : '', opts.centre === 'dispute' ? 'centre disputé' : '', opts.evenements === 'tempetes' ? 'tempêtes' : '', opts.ressources === 'riches' ? 'départ riche' : opts.ressources === 'bacasable' ? 'BAC À SABLE' : ''].filter(Boolean);
       $('msum').innerHTML = bits.map((b) => `<b>${b}</b>`).join(' · ');
     };
