@@ -30,6 +30,8 @@ export class GameAudio {
   private tenseUntil = 0;
   /** Âge du joueur (musique) et dossier de voix de sa faction. */
   private age = 1;
+  /** Sur les menus : musique d'accueil (musique/menu.mp3), en boucle. */
+  private inMenu = true;
   private ageOk = new Set<string>();
   faction = '';
   /** Faction du joueur : ses voix propres sont chargées si elles existent. */
@@ -49,7 +51,7 @@ export class GameAudio {
       for (const [g, n] of Object.entries(GROUPS)) for (let i = 1; i <= n; i++) void this.load(`sfx/${g}_${i}`);
       for (const n of VOICES) void this.load('voix/' + n);
       if (this.faction) for (const n of VOICES) void this.load(`voix/${this.faction}/${n}`);
-      for (const list of AGE_TRACKS) for (const t of list) void fetch(`${BASE}assets/audio/musique/${t}.mp3`).then((r) => { if (r.ok && (r.headers.get('content-type') ?? 'audio').startsWith('audio')) this.ageOk.add(t); }).catch(() => {});
+      for (const list of AGE_TRACKS) for (const t of list) void fetch(`${BASE}assets/audio/musique/${t}.mp3`).then((r) => { if (r.ok && (r.headers.get('content-type') ?? 'audio').startsWith('audio')) this.ageOk.add(t); if (!this.inMenu && AGE_TRACKS[this.age - 1].includes(t) && (CALM.includes(this.track) || this.track === TENSE)) this.next(); }).catch(() => {});
       this.music = new Audio(); this.music.volume = 0.32 * this.vol.musique; this.music.muted = this.muted;
       this.music.addEventListener('ended', () => this.next());
       this.next();
@@ -68,12 +70,16 @@ export class GameAudio {
     if (!this.music) return;
     const mine = AGE_TRACKS[this.age - 1]?.filter((t) => this.ageOk.has(t)) ?? [];
     const pool = (mine.length ? mine : CALM).filter((t) => t !== this.track || mine.length === 1);
-    this.track = tense ? TENSE : pool[Math.floor(Math.random() * pool.length)];
+    // Morceau de tension spatial seulement sans musique d'âge (il jurerait avec une musique antique).
+    this.track = this.inMenu ? 'menu' : tense && !mine.length ? TENSE : pool[Math.floor(Math.random() * pool.length)];
     this.music.src = `${BASE}assets/audio/musique/${this.track}.mp3`;
     this.music.play().catch(() => {});
   }
+  /** Retour aux menus : musique d'accueil. */
+  toMenu() { if (this.inMenu) return; this.inMenu = true; this.next(); }
   /** Nouvel âge : la musique change au morceau suivant (tout de suite si l'âge a sa propre musique). */
   setAge(n: number) {
+    if (this.inMenu) { this.inMenu = false; this.age = n; this.next(); return; }   // début de partie : on quitte la musique d'accueil
     if (n === this.age) return;
     this.age = n;
     if (this.music && AGE_TRACKS[n - 1]?.some((t) => this.ageOk.has(t))) this.next();
@@ -81,7 +87,7 @@ export class GameAudio {
   /** Passe sur le morceau de tension quand le joueur est attaqué (au plus une fois toutes les 4 minutes). */
   tension() {
     const now = performance.now();
-    if (!this.music || this.track === TENSE || now < this.tenseUntil) return;
+    if (!this.music || this.inMenu || this.track === TENSE || now < this.tenseUntil || AGE_TRACKS[this.age - 1]?.some((t) => this.ageOk.has(t))) return;
     this.tenseUntil = now + 240000;
     this.next(true);
   }

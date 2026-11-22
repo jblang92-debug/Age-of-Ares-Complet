@@ -507,7 +507,7 @@ function frame(now: number) {
   fx.barsEnd(); fx.update(dt, cam.camera.quaternion);
   if (fx.shake > 0) { cam.shake(fx.shake); fx.shake = 0; }
   if (ctrl && ctrl.selection.size) { let gone = false; for (const id of ctrl.selection) if (!sim.get(id)) { ctrl.selection.delete(id); gone = true; } if (gone) ctrl.select([...ctrl.selection]); }
-  audio.setAge(sim.players[Math.max(0, me)]?.ere ?? 4); audio.setFaction(FACTION_VOICE_DIRS[sim.players[Math.max(0, me)]?.faction ?? 0] ?? 'ares');
+  if (document.body.classList.contains('playing')) audio.setAge(sim.players[Math.max(0, me)]?.ere ?? 4); audio.setFaction(FACTION_VOICE_DIRS[sim.players[Math.max(0, me)]?.faction ?? 0] ?? 'ares');
   world.setAge(lookAge(sim.players[Math.max(0, me)]?.ere ?? 4), sim.tick < 3); cam.waterY = lookAge(sim.players[Math.max(0, me)]?.ere ?? 4) < 5 ? -1.3 : -Infinity;
   world.update(dt, cam.target, cam.dist);
   world.renderer.render(world.scene, cam.camera);

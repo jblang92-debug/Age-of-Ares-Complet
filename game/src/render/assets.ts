@@ -63,6 +63,18 @@ export async function preload(paths: string[], onProgress?: (done: number, total
 }
 
 export function has(path: string): boolean { return cache.has(path); }
+/** Sommets (avec normales) d'un modèle chargé, dans son repère : pour poser des détails dessus (baies sur un buisson). */
+export function surfacePoints(path: string): { p: THREE.Vector3; n: THREE.Vector3 }[] {
+  const g = cache.get(path); if (!g) return [];
+  g.scene.updateMatrixWorld(true); const out: { p: THREE.Vector3; n: THREE.Vector3 }[] = [];
+  // Même recadrage que instanced() : largeur ramenée à 1 m, posé sur le sol, centré.
+  const box = new THREE.Box3().setFromObject(g.scene), size = box.getSize(new THREE.Vector3()), norm = 1 / Math.max(size.x, size.z, 1e-3);
+  const rc = new THREE.Matrix4().makeScale(norm, norm, norm).multiply(new THREE.Matrix4().makeTranslation(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2));
+  g.scene.traverse((o) => { const m = o as THREE.Mesh; if (!m.isMesh) return; const P = m.geometry.attributes.position, N = m.geometry.attributes.normal, nm = new THREE.Matrix3().getNormalMatrix(m.matrixWorld);
+    const M = new THREE.Matrix4().multiplyMatrices(rc, m.matrixWorld);
+    for (let i = 0; i < P.count; i++) out.push({ p: new THREE.Vector3().fromBufferAttribute(P, i).applyMatrix4(M), n: N ? new THREE.Vector3().fromBufferAttribute(N, i).applyMatrix3(nm).normalize() : new THREE.Vector3(0, 1, 0) }); });
+  return out;
+}
 export function animations(path: string): THREE.AnimationClip[] { return cache.get(path)?.animations ?? []; }
 
 export interface FitOptions { footprint?: number; height?: number; /** Mesure sur la pose réelle du squelette (modèles dont l'armature est mise à l'échelle). */ precise?: boolean }
@@ -109,7 +121,16 @@ export function instanced(path: string, matrices: THREE.Matrix4[], tint?: THREE.
   gltf.scene.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
-    const geo = m.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(recenter, m.matrixWorld));
+    const xf = new THREE.Matrix4().multiplyMatrices(recenter, m.matrixWorld), geo = m.geometry.clone();
+    // Positions et normales quantifiées (entiers normalisés) : en flottants avant d'y intégrer la transformation, sinon tout
+    // ce qui dépasse ±1 serait écrêté (cimes d'arbres plus hautes que larges coupées net).
+    for (const k of ['position', 'normal']) { const at = geo.getAttribute(k) as THREE.BufferAttribute | undefined; if (at && !(at.array instanceof Float32Array)) { const f = new Float32Array(at.count * at.itemSize); for (let i = 0; i < at.count; i++) for (let c = 0; c < at.itemSize; c++) f[i * at.itemSize + c] = at.getComponent(i, c); geo.setAttribute(k, new THREE.BufferAttribute(f, at.itemSize)); } }
+    geo.applyMatrix4(xf);
+    // Échelle négative (miroir) intégrée à la géométrie : on retourne l'ordre des sommets, sinon les faces sont vues de dos.
+    if (xf.determinant() < 0) {
+      if (geo.index) { const ix = geo.index.array as Uint16Array | Uint32Array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } geo.index.needsUpdate = true; }
+      else for (const k in geo.attributes) { const at = geo.attributes[k], n = at.itemSize; for (let i = 0; i < at.count; i += 3) for (let c = 0; c < n; c++) { const t = at.array[(i + 1) * n + c]; (at.array as Float32Array)[(i + 1) * n + c] = at.array[(i + 2) * n + c]; (at.array as Float32Array)[(i + 2) * n + c] = t; } }
+    }
     let mat = m.material as THREE.MeshStandardMaterial;
     if (tint) { mat = mat.clone(); mat.color.multiply(new THREE.Color(tint)); }
     const inst = new THREE.InstancedMesh(geo, mat, matrices.length);

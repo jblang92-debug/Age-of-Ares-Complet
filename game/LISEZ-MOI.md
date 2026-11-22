@@ -283,3 +283,10 @@ Dans ce dossier, depuis le Terminal :
 - Musique par âge (musique/age1_1.mp3 … age6_3.mp3) et voix par faction (voix/ares|boreale|australe|solaris/...), prises en compte dès que les fichiers existent.
 - IA des îles : si son rivage est pris par une tour ou une maison, elle cherche un autre bout de côte pour le quai.
 - Rejeu et parties en ligne : l'IA ne modifiait pas toujours la partie par des ordres (retardataires d'un embarquement) ; c'est corrigé, et le cache des chemins ne dépend plus des calculs de l'IA. Les sauvegardes rejouées redonnent la même partie.
+
+## 22/11/2026 (soir) — Musiques, voix et nature fournies par Jean-Baptiste
+
+- Musique d'accueil (musique/menu.mp3) sur les menus, puis une musique par âge (musique/age1_1.mp3 … age6_1.mp3) ; plus de morceau de tension spatial quand l'âge a sa propre musique.
+- Voix des factions Boréale, Australe et Solaris (voix/boreale|australe|solaris/), découpées réplique par réplique depuis les enregistrements Suno (vérifiées par reconnaissance vocale) ; Arès garde les voix d'origine.
+- Arbres KayKit « Forest Nature Pack » (CC0) et buissons ronds garnis de baies rouges.
+- Correctif d'affichage : les modèles compressés plus hauts que larges étaient écrêtés (cimes coupées, rochers creux) ; positions et normales passent en flottants avant le placement.

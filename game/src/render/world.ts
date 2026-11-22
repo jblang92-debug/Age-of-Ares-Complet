@@ -1,3 +1,4 @@
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 // Scène : lumière de fin de journée, terrain, bases, gisements et décor.
 import * as THREE from 'three';
 import type { TerrainMap } from '../mapgen/terrain';
@@ -7,12 +8,14 @@ import { mulberry32 } from '../core/rng';
 import { buildTerrainMesh } from './terrainMesh';
 import { iceGeometry, iceMaterial } from './ice';
 import { berryBush, bushMaterial, fishShoal } from './flora';
-import { preload, spawn, instanced } from './assets';
+import { preload, spawn, instanced, surfacePoints } from './assets';
 import { UNIT_MODELS, WATER_Y } from './units';
 import { BUILDING_MODELS } from './buildings';
 
 export type Quality = 'basse' | 'moyenne' | 'haute';
 
+const NATURE_TREES = ['nature/Tree_1_A_Color1.json', 'nature/Tree_2_A_Color1.json', 'nature/Tree_2_C_Color1.json', 'nature/Tree_3_A_Color1.json', 'nature/Tree_4_A_Color1.json', 'nature/Tree_4_B_Color1.json'];
+const NATURE_BUSH = 'nature/Bush_1_A_Color1.json';
 const MODELS = [
   'kaykit/landingpad_large.json', 'kaykit/lander_A.json', 'kaykit/basemodule_A.json', 'kaykit/basemodule_B.json',
   'kaykit/basemodule_garage.json', 'kaykit/roofmodule_solarpanels.json', 'kaykit/solarpanel.json',
@@ -23,6 +26,7 @@ const MODELS = [
   'kaykit/basemodule_C.json', 'kaykit/basemodule_D.json', 'kaykit/basemodule_E.json', 'kaykit/cargodepot_B.json', 'kaykit/windturbine_low.json', 'quat/GeodesicDome.json', 'quat/Navette.json',
   'quat/Rock_1.json', 'quat/Rock_2.json', 'quat/Rock_3.json', 'quat/Rock_4.json',
   'quat/Rock_Large_1.json', 'quat/Rock_Large_2.json', 'quat/Rock_Large_3.json',
+  ...NATURE_TREES, NATURE_BUSH,
   ...['Resource_Tree1', 'Resource_Tree2', 'Resource_PineTree', 'Resource_Rock_1', 'Resource_Rock_2', 'Resource_Rock_3', 'Resource_Gold_1', 'Resource_Gold_2', 'Resource_Gold_3'].map((m) => `antique/${m}.json`),
 ];
 
@@ -48,6 +52,26 @@ function makeWater(size: number): THREE.Mesh {
   };
   const mesh = new THREE.Mesh(g, m); mesh.position.y = WATER_Y; mesh.renderOrder = 1; mesh.receiveShadow = true; mesh.userData.uniforms = uniforms;
   return mesh;
+}
+
+/** Baies rouges (quelques violettes) sur les sommets du haut et des côtés d'un buisson, dans le repère du modèle. */
+function berriesOn(pts: { p: THREE.Vector3; n: THREE.Vector3 }[]): THREE.BufferGeometry {
+  let top = 0; for (const q of pts) top = Math.max(top, q.p.y);
+  let seed = 5; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  // Points de l'enveloppe : pour une direction tirée au hasard, le sommet le plus en avant dans cette direction (jamais caché dans le feuillage).
+  const ctr = new THREE.Vector3(0, top * 0.4, 0), parts: THREE.BufferGeometry[] = [], used: THREE.Vector3[] = [];
+  const r = top * 0.062;
+  for (let k = 0; k < 600 && parts.length < 18; k++) {
+    const d = new THREE.Vector3(rnd() * 2 - 1, rnd() * 1.1 - 0.15, rnd() * 2 - 1).normalize();
+    let best = pts[0], bv = -1e9; for (const q of pts) { const v = q.p.clone().sub(ctr).dot(d); if (v > bv) { bv = v; best = q; } }
+    if (best.p.y < top * 0.25) continue;
+    const p = best.p.clone().addScaledVector(d, r * 0.35);
+    if (used.some((u) => u.distanceTo(p) < r * 2.4)) continue; used.push(p);
+    const g = new THREE.IcosahedronGeometry(r, 1).translate(p.x, p.y, p.z), n = g.attributes.position.count, c = new THREE.Color(parts.length % 6 === 0 ? 0x6a1a5a : 0xd61f2c), a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3)); g.deleteAttribute('uv'); parts.push(g);
+  }
+  return mergeGeometries(parts)!;
 }
 
 export class World {
@@ -194,14 +218,21 @@ export class World {
     const solMat = this.crystals = new THREE.MeshStandardMaterial({ color: 0xff9a22, emissive: 0xff5200, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.1, flatShading: true });
     fromGeo('solarite', new THREE.OctahedronGeometry(1, 0).translate(0, 0.75, 0), solMat, (r) => mat(r, r.sx, r.sy, 0.3));
     // Nourriture : buissons de baies (âges anciens) / blocs de glace (ère spatiale).
-    this.resOld.push(fromGeo('glace', berryBush(), bushMaterial(), (r) => mat(r, r.sx * 1.25, r.sx * 1.15, 0.05, false)));
+    // Baies : buisson KayKit, garni de baies rouges posées sur son feuillage (mêmes placements, donc toujours sur le buisson).
+    const bushAt = (r: typeof R[number]) => mat(r, r.sx * 1.5, r.sx * 1.4, 0.03, false);
+    const pts = surfacePoints(NATURE_BUSH);
+    if (pts.length) {
+      this.resOld.push(fromModels('glace', [NATURE_BUSH], bushAt));
+      this.resOld.push(fromGeo('glace', berriesOn(pts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, emissive: 0x3a0000 }), bushAt));
+    } else this.resOld.push(fromGeo('glace', berryBush(), bushMaterial(), (r) => mat(r, r.sx * 1.25, r.sx * 1.15, 0.05, false)));
     this.resNew.push(fromGeo('glace', iceGeometry(), iceMaterial(this.renderer), (r) => mat(r, r.sx, r.sy, 0.25)));
     // Poissons : bancs à fleur d'eau (âges anciens ; l'eau devient le vide à l'âge galactique).
     const fish = fromGeo('poisson', fishShoal(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.2, transparent: true, opacity: 0.92 }),
       (r) => new THREE.Matrix4().compose(new THREE.Vector3(r.x, WATER_Y + 0.08, r.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r.rot, 0)), new THREE.Vector3(1, 1, 1)));
     fish.renderOrder = 2; this.resOld.push(fish);
     // Bois : forêts (toutes époques).
-    fromModels('arbre', [A + 'Resource_Tree1.json', A + 'Resource_Tree2.json', A + 'Resource_PineTree.json', A + 'Resource_PineTree.json'], (r) => mat(r, r.sx * 1.45, r.sx * 1.45 * r.sy, 0.1, false));
+    // Arbres des âges anciens : KayKit « Forest Nature Pack » (CC0), feuillus et conifères pleins, bien lisibles de haut.
+    fromModels('arbre', NATURE_TREES, (r) => mat(r, r.sx * 1.5, r.sx * 1.5 * r.sy, 0.12, false));
     // Pierre : rochers gris (âges anciens) / minerai métallique (ère spatiale).
     this.resOld.push(fromModels('minerai', [A + 'Resource_Rock_1.json', A + 'Resource_Rock_2.json', A + 'Resource_Rock_3.json'], (r) => mat(r, r.sx * 1.45, r.sx * 1.25, 0.15, false)));
     const ore = fromModels('minerai', ['quat/Rock_2.json'], (r) => mat(r, r.sx, r.sy, 0.2), 0x6d6470);
