@@ -296,3 +296,4 @@ Dans ce dossier, depuis le Terminal :
 - Outils tenus en main : la pioche, la hache et le marteau sont posés dans la main droite après la cinématique inverse (plus d'outil qui flotte) ; la main gauche se pose sur le manche.
 - Bûcheron : vraie hache à deux mains, coup en diagonale de l'épaule droite vers le tronc, buste qui pivote (remplace l'animation de coupe d'origine).
 - Bruits près de la caméra : pioche sur la pierre et l'or, hache, marteau, cueillette des baies (scripts/worksfx.py) ; épées plus présentes ; flèches : départ puis impact.
+- Villageois chargé : la récolte est portée dans les bras, entre les deux mains (plus de bras tendus vides avec un ballot dans le dos).

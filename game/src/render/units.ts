@@ -1017,8 +1017,8 @@ export class UnitViews {
           v.state = st;
           to.reset().play(); if (st === 2 && v.look.workStill !== undefined) to.time = v.look.workStill; from.crossFadeTo(to, 0.18, false);
         }
-        if (u.carry > 0.5 && u.carryKind && nCarry < CAP) {
-          // charge visible sur le dos de l'ouvrier
+        if (u.carry > 0.5 && u.carryKind && nCarry < CAP && !(v.vsw && st === 6)) {
+          // charge visible sur le dos de l'ouvrier (le villageois qui marche chargé la porte dans ses bras, plus bas)
           const vk = v.look.vill ? 0.47 : 1, back = v.look.vill ? 0.31 : 0.45;   // villageois : petit ballot sur le dos
           m.compose(p.set(x - Math.sin(v.heading) * back, v.pos.y + (v.look.vill ? 1.32 : 1.45), z - Math.cos(v.heading) * back), q.setFromAxisAngle(this.up, v.heading), s.set(vk, vk, vk));
           this.carry.setMatrixAt(nCarry, m); this.carry.setColorAt(nCarry++, CARRY_COLORS[u.carryKind] ?? CARRY_COLORS.eau);
@@ -1029,6 +1029,15 @@ export class UnitViews {
           if (st === 7 || st === 8 || st === 9) this.villSwing(v, dt, st === 8 ? 'marteau' : st === 9 ? 'hache' : 'pioche');
           else { v.vsw.tool.visible = v.vsw.ham.visible = v.vsw.axe.visible = false; v.vsw.t = (u.id * 0.53) % SWING_PERIOD; }
           if (st === 4) { v.vsw.pick -= dt; if (v.vsw.pick <= 0) { v.vsw.pick = 1.4 + ((u.id * 0.29) % 0.6); this.onWork?.('baies', v.pos.x, v.pos.z); } }   // cueillette
+        }
+        // Villageois chargé : la marche « bras en avant » porte vraiment sa récolte, posée entre ses deux mains.
+        if (v.vsw && st === 6 && u.carry > 0.5 && u.carryKind && nCarry < CAP) {
+          v.body.updateMatrixWorld(true);
+          const hr = v.vsw.hR.getWorldPosition(new THREE.Vector3()), hl = v.vsw.hL.getWorldPosition(new THREE.Vector3());
+          const w = Math.max(0.22, Math.min(0.42, hr.distanceTo(hl) * 0.95)), k = w / 0.55;
+          p.copy(hr).add(hl).multiplyScalar(0.5); p.x += Math.sin(v.heading) * w * 0.25; p.z += Math.cos(v.heading) * w * 0.25; p.y += w * 0.18;
+          m.compose(p, q.setFromAxisAngle(this.up, v.heading), s.set(k, k * 0.85, k));
+          this.carry.setMatrixAt(nCarry, m); this.carry.setColorAt(nCarry++, CARRY_COLORS[u.carryKind] ?? CARRY_COLORS.eau);
         }
         if (v.ride) {
           // Cavalier : suit le dos du cheval ; frappe du haut du corps pendant l'attaque.
