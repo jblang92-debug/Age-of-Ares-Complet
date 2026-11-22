@@ -31,7 +31,8 @@ const ICONS = new Set(['b_centre', 'b_depotMinier', 'b_centrale', 'b_habitat', '
 /** Recherches sans illustration propre : on réutilise une icône proche. */
 const ALIAS: Record<string, string> = { t_barriere: 'b_bouclier', t_monnaie: 'r_or', t_banque: 'r_or' };
 /** Icône d'un bâtiment ou d'une unité, dans la version de l'âge du joueur quand elle existe (Antiquité, Moyen Âge et poudre). */
-const ageIcon = (n: string, ere?: number) => { if (!ere || ere > 3) return n; const v = n.startsWith('b_') ? `${n}_a${Math.min(ere, 2)}` : `${n}_a`; return ICONS.has(v) ? v : n; };
+const ageIcon = (n: string, ere?: number) => { if (n === 'u_ouvrier' && ICONS.has('u_ouvrier_a')) return 'u_ouvrier_a';   // le villageois à tous les âges
+  if (!ere || ere > 3) return n; const v = n.startsWith('b_') ? `${n}_a${Math.min(ere, 2)}` : `${n}_a`; return ICONS.has(v) ? v : n; };
 const icon = (n: string, ere?: number) => (n = ALIAS[ageIcon(n, ere)] ?? ageIcon(n, ere), ICONS.has(n))  ? `<img src="${UI('icons/' + n + '.png')}" alt=""/>` : '';
 const RES = ['eau', 'bois', 'minerai', 'energie', 'solarite'] as const;
 const pills = (c: object) => `<span class="cost">${RES.filter((k) => (c as Record<string, number>)[k]).map((k) => `<b class="p-${k}">${(c as Record<string, number>)[k]}</b>`).join('')}</span>`;

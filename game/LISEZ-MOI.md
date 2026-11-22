@@ -297,3 +297,4 @@ Dans ce dossier, depuis le Terminal :
 - Bûcheron : vraie hache à deux mains, coup en diagonale de l'épaule droite vers le tronc, buste qui pivote (remplace l'animation de coupe d'origine).
 - Bruits près de la caméra : pioche sur la pierre et l'or, hache, marteau, cueillette des baies (scripts/worksfx.py) ; épées plus présentes ; flèches : départ puis impact.
 - Villageois chargé : la récolte est portée dans les bras, entre les deux mains (plus de bras tendus vides avec un ballot dans le dos).
+- L'ouvrier reste le villageois (ou la villageoise) à tous les âges, avec tous ses gestes ; icône du villageois partout. Pendant le travail, plus de ballot dans le dos.

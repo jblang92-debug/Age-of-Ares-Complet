@@ -495,7 +495,8 @@ export class UnitViews {
   }
 
   /** Aspect d'une unité : celui de son époque pour les unités qui traversent les âges (ouvrier, navette). */
-  private lookFor(u: Unit): Look { return (this.sim.players[u.owner]?.ere ?? 4) <= 3 && OLD_LOOKS[u.kind] ? (u.kind === 'ouvrier' && u.id % 2 ? OUVRIERE : OLD_LOOKS[u.kind]!) : LOOKS[u.kind]; }
+  // L'ouvrier reste le villageois (ou la villageoise) à tous les âges : c'est lui qui a tous les gestes de travail.
+  private lookFor(u: Unit): Look { if (u.kind === 'ouvrier') return u.id % 2 ? OUVRIERE : OLD_LOOKS.ouvrier!; return (this.sim.players[u.owner]?.ere ?? 4) <= 3 && OLD_LOOKS[u.kind] ? OLD_LOOKS[u.kind]! : LOOKS[u.kind]; }
   private create(u: Unit): View {
     const look = this.lookFor(u);
     const v: View = { pos: new THREE.Vector3(u.x, this.sim.map.heightAt(u.x, u.z), u.z), heading: u.heading, look, acts: [], state: 0 };
@@ -1017,7 +1018,7 @@ export class UnitViews {
           v.state = st;
           to.reset().play(); if (st === 2 && v.look.workStill !== undefined) to.time = v.look.workStill; from.crossFadeTo(to, 0.18, false);
         }
-        if (u.carry > 0.5 && u.carryKind && nCarry < CAP && !(v.vsw && st === 6)) {
+        if (u.carry > 0.5 && u.carryKind && nCarry < CAP && !v.vsw) {
           // charge visible sur le dos de l'ouvrier (le villageois qui marche chargé la porte dans ses bras, plus bas)
           const vk = v.look.vill ? 0.47 : 1, back = v.look.vill ? 0.31 : 0.45;   // villageois : petit ballot sur le dos
           m.compose(p.set(x - Math.sin(v.heading) * back, v.pos.y + (v.look.vill ? 1.32 : 1.45), z - Math.cos(v.heading) * back), q.setFromAxisAngle(this.up, v.heading), s.set(vk, vk, vk));
