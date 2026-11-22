@@ -155,15 +155,23 @@ export class Controller {
       this.sim.issue({ type: 'place', owner: this.player, kind: 'porte', x: g.x, z: g.z, ids });
       this.onOrder?.(p, 0xffe07a); this.cancelPlacing(); return;
     }
+    if (pl.kind === 'recycleur') { const s = this.sim.farmSnap(this.player, p.x, p.z); p = p.clone().set(s.x, p.y, s.z); }
     if (!this.sim.canPlace(pl.kind, p.x, p.z)) { this.onMsg?.('Emplacement impossible'); return; }
     this.sim.issue({ type: 'place', owner: this.player, kind: pl.kind, x: p.x, z: p.z, ids });
     this.onOrder?.(p, 0xffe07a);
     this.cancelPlacing();
   }
 
+  /** Quantité restante d'un gisement touché. */
+  private nodeInfo(n: { kind: string; res: string; amount: number; b: number }) {
+    const nom = ({ arbre: 'Arbre', glace: (this.sim.players[this.player]?.ere ?? 4) <= 3 ? 'Baies' : 'Glace', minerai: 'Pierre', or: 'Or', solarite: 'Solarite', poisson: 'Banc de poissons' } as Record<string, string>)[n.kind] ?? 'Gisement';
+    this.onMsg?.(n.b >= 0 ? `${nom} : inépuisable` : `${nom} : ${Math.max(0, Math.ceil(n.amount))} restant${n.amount >= 2 ? 's' : ''}`);
+  }
+
   /** Ordre contextuel sur un point du terrain : récolter, aider un chantier, se déplacer, point de ralliement. */
   private context(p: THREE.Vector3, sx?: number, sy?: number) {
     const node = this.sim.nodeAt(p.x, p.z), b = this.sim.buildingAt(p.x, p.z);
+    if (node) this.nodeInfo(node);
     if (this.selection.size) {
       const navs = [...this.selection].filter((id) => { const k = this.sim.get(id)?.kind; return k === 'navette' || k === 'galion'; });
       if (this.unloadMode && navs.length) {
@@ -265,6 +273,7 @@ export class Controller {
     if (this.placing && e.pointerType === 'mouse') {
       const p = this.cam.terrainPoint(e.clientX, e.clientY, this.v);
       if (p && this.placing.kind === 'porte') { const g = this.sim.gateSnap(this.player, p.x, p.z); this.ghost = { x: g.x, z: g.z, r: BUILDINGS.porte.rayon, ok: this.sim.canPlaceGate(this.player, g.x, g.z) }; }
+      else if (p && this.placing.kind === 'recycleur') { const s = this.sim.farmSnap(this.player, p.x, p.z); this.ghost = { x: s.x, z: s.z, r: BUILDINGS.recycleur.rayon, ok: this.sim.canPlace('recycleur', s.x, s.z) }; }
       else this.ghost = p ? { x: p.x, z: p.z, r: BUILDINGS[this.placing.kind].rayon, ok: this.sim.canPlace(this.placing.kind, p.x, p.z), range: (TURRETS as Record<string, { portee: number }>)[this.placing.kind]?.portee } : null;
     }
     const d = this.drag;
@@ -295,7 +304,7 @@ export class Controller {
       if (id >= 0) return this.clickUnit(id, d.shift);
       const b = world ? this.sim.buildingAt(world.x, world.z) : null;
       if (b && b.owner === this.player) this.selectBuilding(b.id);
-      else if (!d.shift) this.select([]);
+      else { if (!d.shift) this.select([]); const n = world ? this.sim.nodeAt(world.x, world.z) : null; if (n) this.nodeInfo(n); }
     } else if (this.boxMode) { this.boxMode = false; this.onChange?.(); }
   };
 

@@ -208,7 +208,9 @@ export class World {
     ore.traverse((o) => { const im = o as THREE.InstancedMesh; if (im.isInstancedMesh) { const mt = im.material as THREE.MeshStandardMaterial; mt.metalness = 0.75; mt.roughness = 0.42; } });
     this.resNew.push(ore);
     // Or : filons dorés (toutes époques).
-    fromModels('or', [A + 'Resource_Gold_1.json', A + 'Resource_Gold_2.json', A + 'Resource_Gold_3.json'], (r) => mat(r, r.sx * 1.55, r.sx * 1.15 * r.sy, 0.12, false));
+    const gold = fromModels('or', [A + 'Resource_Gold_1.json', A + 'Resource_Gold_2.json', A + 'Resource_Gold_3.json'], (r) => mat(r, r.sx * 1.55, r.sx * 1.15 * r.sy, 0.12, false));
+    // Pépites vraiment dorées (le brun d'origine se confondait avec la pierre).
+    gold.traverse((o) => { const im = o as THREE.Mesh; if (!im.isMesh) return; for (const m of [im.material].flat() as THREE.MeshStandardMaterial[]) if (/gold/i.test(m.name)) { m.color.setRGB(1, 0.62, 0.08); m.metalness = 0.85; m.roughness = 0.28; m.emissive.setRGB(0.22, 0.13, 0); } });
     for (const [i, fs] of hides) this.resHide.set(i, () => fs.forEach((f) => f()));
     this.showResEpoch(this.epoch < 0 ? 0 : this.epoch);
   }

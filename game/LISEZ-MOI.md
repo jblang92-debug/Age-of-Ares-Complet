@@ -268,3 +268,18 @@ Dans ce dossier, depuis le Terminal :
 - Taxe façon Age of Empires II : 25 % retenus sur l'envoi. Recherches au Centre : Monnaie (Moyen Âge) → 15 %, puis Banque (âge moderne, après la Monnaie) → 5 %.
 - Marche en ligne comme un ordre de jeu (chacun ne peut envoyer que ses propres ressources) ; message chez l'envoyeur et chez celui qui reçoit.
 - Test : tests/j24.ts.
+
+## 22/11/2026 (après-midi) — Retours de partie sur téléphone
+
+- Déplacements : une cible inaccessible (poche fermée, passage trop étroit pour un engin) n'immobilise plus les unités contre l'obstacle ; elles vont au point atteignable le plus proche (tests/j25.ts).
+- Villageois plus grands (proches de la taille des soldats) ; construction debout au marteau (bras en cinématique inverse) ; mine à la pioche.
+- Cavaliers à califourchon : une jambe de chaque côté du cheval, bassin centré sur le dos.
+- Ordres : un clic, et la réplique d'ordre passe devant celle de la sélection (avant, la sélection la masquait). Voix d'âge à chaque nouvel âge.
+- Icônes : gerbe de blé pour la nourriture, lingots et pièces pour l'or ; gisements d'or vraiment dorés.
+- Fermes en damier, calées sur le Centre (ou le Moulin), toutes dans le même sens ; l'IA les pose aussi en damier.
+- Toucher un gisement : quantité restante affichée.
+- Âge de la poudre : bourg de pierre (bâtiments « second âge » de Quaternius, CC0).
+- Âge moderne : Archerie, Écurie et Atelier de siège deviennent des Casernes (santé gardée, file remboursée).
+- Musique par âge (musique/age1_1.mp3 … age6_3.mp3) et voix par faction (voix/ares|boreale|australe|solaris/...), prises en compte dès que les fichiers existent.
+- IA des îles : si son rivage est pris par une tour ou une maison, elle cherche un autre bout de côte pour le quai.
+- Rejeu et parties en ligne : l'IA ne modifiait pas toujours la partie par des ordres (retardataires d'un embarquement) ; c'est corrigé, et le cache des chemins ne dépend plus des calculs de l'IA. Les sauvegardes rejouées redonnent la même partie.

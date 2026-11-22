@@ -149,7 +149,7 @@ export class Ai {
         const c0 = nav.nearestFree(port.x, port.z, 2, undefined, undefined, 16);
         if (c0 >= 0) {
           // L'eau atteignable depuis notre Port la plus proche du Centre ennemi (à moins de 55 m).
-          const f = nav.field(nav.cx(c0), nav.cz(c0), 2), W = nav.blocked[2]; let bd = 55;
+          const f = nav.flowField(nav.cx(c0), nav.cz(c0), 2), W = nav.blocked[2]; let bd = 55;
           for (let k = 0; k < W.length; k++) { if (W[k] || f[k] >= 1e8) continue; const d = Math.hypot(nav.cx(k) - foeCentre.x, nav.cz(k) - foeCentre.z); if (d < bd) { bd = d; target = { x: nav.cx(k), z: nav.cz(k) }; } }
         }
       }
@@ -236,7 +236,9 @@ export class Ai {
       const build = (kind: string, cx: number, cz: number, r0: number): boolean => {
         if (!dispo(BUILDINGS[kind], P.ere)) return false;
         if (!afford(BUILDINGS[kind].cout)) return true;            // on attend d'avoir de quoi payer
-        const s = this.spot(kind, cx, cz, r0) ?? (['scierie', 'stationEau', 'depotMinier', 'raffinerie', 'quai'].includes(kind) ? null : this.spot(kind, centre.x, centre.z, 10, home, 44)); if (!s) { this.failed.set(kind, sim.tick); return false; }   // forêts et gisements autour du Centre : on cherche plus loin
+        // Fermes : première case libre du damier autour du Centre.
+        const farm = (): { x: number; z: number } | null => { const G = 5.6; for (let ring = 1; ring < 6; ring++) for (let i = -ring; i < ring; i++) for (const [gx, gz] of [[i, -ring], [ring, i], [-i, ring], [-ring, -i]]) { const p = sim.farmSnap(me, centre.x + (gx + 0.5) * G, centre.z + (gz + 0.5) * G); if (sim.canPlace(kind, p.x, p.z) && ![0, 1.57, 3.14, 4.71].some((a) => sim.map.isVoid(p.x + Math.cos(a) * 10, p.z + Math.sin(a) * 10))) return p; } return null; };   // les rivages restent libres pour le quai
+        const s = (kind === 'recycleur' ? farm() : null) ?? this.spot(kind, cx, cz, r0) ?? (['scierie', 'stationEau', 'depotMinier', 'raffinerie', 'quai'].includes(kind) ? null : this.spot(kind, centre.x, centre.z, 10, home, 44)); if (!s) { this.failed.set(kind, sim.tick); return false; }   // forêts et gisements autour du Centre : on cherche plus loin
         const w = this.pickBuilder(workers, s.x, s.z); if (!w) return false;
         sim.issue({ type: 'place', owner: me, kind, x: s.x, z: s.z, ids: [w.id] }); this.placed++;
         return true;
@@ -247,7 +249,16 @@ export class Ai {
       if (can('habitat') && P.pop + 4 >= P.popCap && P.popCap < GAME.popMax && P.popCap < pr.cap + pr.workers + 6) build('habitat', centre.x - dirX / dl * 6, centre.z - dirZ / dl * 6, 9);
       else if (can('scierie') && far(nodes[1], 'scierie') && (pr.depots || count('scierie') < 1) && workers.length >= 5) build('scierie', nodes[1]!.x, nodes[1]!.z, 5);
       else if (can('caserne') && count('caserne') < 1 && workers.length >= 6) build('caserne', centre.x + dirX / dl * 8, centre.z + dirZ / dl * 8, 8);
-      else if (can('quai') && sep && casernesDone && count('quai') < 1) build('quai', this.shore!.x, this.shore!.z, 0);
+      else if (can('quai') && sep && casernesDone && count('quai') < 1) { if (!build('quai', this.shore!.x, this.shore!.z, 0)) {
+        // Rivage pris (tour, maison posée entre-temps) : on cherche un autre bout de côte libre, au plus près de l'ennemi.
+        const foeC = sim.buildings.find((b) => b.kind === 'centre' && sim.foe(b.owner, me) && !sim.players[b.owner].neutral);
+        let qb: { x: number; z: number } | null = null, qd = 1e9;
+        for (let z = -sim.map.half + 4; z <= sim.map.half - 4; z += 2) for (let x = -sim.map.half + 4; x <= sim.map.half - 4; x += 2) {
+          if (this.regionAt(x, z) !== home || !sim.canPlace('quai', x, z) || sim.buildings.some((b) => Math.hypot(b.x - x, b.z - z) < b.r + BUILDINGS.quai.rayon + 2.6) || sim.nodes.some((n) => n.amount > 0 && Math.hypot(n.x - x, n.z - z) < 8)) continue;
+          const d = foeC ? Math.hypot(x - foeC.x, z - foeC.z) : 0; if (d < qd) { qd = d; qb = { x, z }; }
+        }
+        if (qb) { this.shore = qb; this.failed.delete('quai'); }
+      } }
       else if (can('quai') && !sep && this.sea?.port && P.ere <= 3 && workers.length >= 9 && count('quai') < 1) build('quai', this.sea.port.x, this.sea.port.z, 0);   // pêche et marine de guerre
       else if (can('caserne') && count('caserne') < pr.casernes && workers.length >= 10) build('caserne', centre.x + dirX / dl * 8, centre.z + dirZ / dl * 8, 10);
       // Âges anciens : archerie, écurie, puis atelier de siège au Moyen Âge.
@@ -492,7 +503,7 @@ export class Ai {
         const more = waiting.length ? this.fill(nv, waiting, sim.units.filter((u) => u.board === nv.id).reduce((a, u) => a + sim.slot(u), 0)) : [];
         if (more.length) sim.issue({ type: 'load', ids: more.map((u) => u.id), navette: nv.id });
         if (nv.cargo.length > 0 && (sim.navUsed(nv) >= sim.navCap(nv.owner, nv) - 1 || boarding === 0 || sim.tick - f.t > 260)) {
-          for (const u of sim.units) if (u.board === nv.id) u.board = -1;          // les retardataires attendront le prochain voyage
+          { const late = sim.units.filter((u) => u.board === nv.id).map((u) => u.id); if (late.length) sim.issue({ type: 'stop', ids: late }); }   // les retardataires attendront le prochain voyage (par un ordre : la partie reste rejouable)
           sim.issue({ type: 'unload', id: nv.id, x: land.x, z: land.z }); f.st = 'flying'; f.t = sim.tick;
         } else if (!nv.cargo.length && !boarding && sim.tick - f.t > 40) f.st = 'idle';
       } else if (f.st === 'flying') {
@@ -557,7 +568,7 @@ export class Ai {
       sim.issue({ type: 'load', ids: pool.map((u) => u.id), navette: nv.id }); f.st = 'loading'; f.t = sim.tick;
     } else if (f.st === 'loading') {
       const boarding = sim.units.filter((u) => u.board === nv!.id).length;
-      if (nv.cargo.length && (!boarding || sim.tick - f.t > 200)) { for (const u of sim.units) if (u.board === nv.id) u.board = -1; sim.issue({ type: 'unload', id: nv.id, x: land.x, z: land.z }); f.st = 'flying'; f.t = sim.tick; }
+      if (nv.cargo.length && (!boarding || sim.tick - f.t > 200)) { { const late = sim.units.filter((u) => u.board === nv.id).map((u) => u.id); if (late.length) sim.issue({ type: 'stop', ids: late }); } sim.issue({ type: 'unload', id: nv.id, x: land.x, z: land.z }); f.st = 'flying'; f.t = sim.tick; }
       else if (!nv.cargo.length && !boarding && sim.tick - f.t > 60) f.st = 'idle';
     } else if (f.st === 'flying') {
       if (!nv.cargo.length) { f.st = 'idle'; f.t = sim.tick; }

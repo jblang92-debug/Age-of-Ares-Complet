@@ -15,7 +15,7 @@ import { GAME, UNITS, lookAge, RES_NOM, TRIBUT } from './data/rules';
 import { BuildingViews } from './render/buildings';
 import { Effects, type Weapon } from './render/effects';
 import { Ai, type Level } from './sim/ai';
-import { GameAudio } from './audio/audio';
+import { FACTION_VOICE_DIRS, GameAudio } from './audio/audio';
 import { UnitViews } from './render/units';
 import { Controller } from './input/controller';
 import { replayTo, type SaveGame, saveAge } from './sim/replay';
@@ -363,7 +363,7 @@ function frame(now: number) {
     if (e.t === 'msg') { if (e.owner === me) say(e.text); }
     else if (e.t === 'tribut') { if (e.from === me) hud.toast(`${tr('Tribut envoyé à')} ${nameOf(e.to)} : ${e.net} ${tr(RES_NOM[e.res])} (${tr('taxe')} ${e.amount - e.net})`); else if (e.to === me) { hud.toast(`${nameOf(e.from)} ${tr("t'envoie")} ${e.net} ${tr(RES_NOM[e.res])}`); audio.sfx('ok', 0.6); } }
     else if (e.t === 'ready') { if (e.owner === me) audio.voice('ready'); }
-    else if (e.t === 'age') { if (e.owner === me) { audio.sfx('age', 0.6); hud.toast('Ton peuple entre dans ' + (e.ere === 2 ? 'le ' : 'l\'') + GAME.eres[e.ere - 1].nom); } }
+    else if (e.t === 'age') { if (e.owner === me) { audio.sfx('age', 0.6); audio.voice(e.ere >= 4 ? 'era3' : 'era2', true, 0); hud.toast('Ton peuple entre dans ' + (e.ere === 2 ? 'le ' : 'l\'') + GAME.eres[e.ere - 1].nom); } }
     else if (e.t === 'built') { if (sim.building(e.b)?.owner === me && sim.building(e.b)?.kind !== 'mur') audio.voice('built'); }
     else if (e.t === 'depleted') world.hideResource(e.node);
     else if (e.t === 'promo') { if (e.owner === me) { const u = sim.get(e.id); hud.toast(`${u ? UNITS[u.kind].nom : 'Unité'} promu : ${'★'.repeat(e.vet)}`); audio.sfx('ok', 0.5, 300); } }
@@ -507,6 +507,7 @@ function frame(now: number) {
   fx.barsEnd(); fx.update(dt, cam.camera.quaternion);
   if (fx.shake > 0) { cam.shake(fx.shake); fx.shake = 0; }
   if (ctrl && ctrl.selection.size) { let gone = false; for (const id of ctrl.selection) if (!sim.get(id)) { ctrl.selection.delete(id); gone = true; } if (gone) ctrl.select([...ctrl.selection]); }
+  audio.setAge(sim.players[Math.max(0, me)]?.ere ?? 4); audio.setFaction(FACTION_VOICE_DIRS[sim.players[Math.max(0, me)]?.faction ?? 0] ?? 'ares');
   world.setAge(lookAge(sim.players[Math.max(0, me)]?.ere ?? 4), sim.tick < 3); cam.waterY = lookAge(sim.players[Math.max(0, me)]?.ere ?? 4) < 5 ? -1.3 : -Infinity;
   world.update(dt, cam.target, cam.dist);
   world.renderer.render(world.scene, cam.camera);
@@ -545,9 +546,11 @@ world.load((f) => hud.setLoading(f)).then(() => {
   labels = new WorkerLabels(sim, document.getElementById('wlabels')!, me);
   ctrl.onOrder = (p, color) => {
     world.ping(p, color);
-    if (color === 0xff5a4d) audio.voice(['attack1', 'attack2']);
+    // Chaque ordre répond : un clic, et la réplique de l'unité (qui passe devant celle de la sélection).
+    audio.sfx('click', 0.35, 60);
+    if (color === 0xff5a4d) audio.voice(['attack1', 'attack2'], true, 1200);
     else if (color === 0xffe07a) audio.sfx('place', 0.5, 150);
-    else if (color !== 0xff9ad5) audio.voice(['move1', 'move2']);
+    else if (color !== 0xff9ad5) audio.voice(['move1', 'move2'], true, 1200);
   };
   ctrl.onMsg = say;
   ctrl.onSelect = () => audio.voice(['select1', 'select2'], false, 3500);

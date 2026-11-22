@@ -68,6 +68,21 @@ const LOOKS_A2: Record<string, BLook> = {
   quai: { model: 'antique/Port_SecondAge_Level1.json', footprint: 8.4 },
   tourelle: { model: 'medieval/tower_A_@.json', footprint: 3.4 },
 };
+/** Âge de la poudre : bourg de pierre (Quaternius, « Ultimate Fantasy RTS », bâtiments du second âge, CC0). */
+const LOOKS_A3: Record<string, BLook> = {
+  centre: { model: 'antique/Temple_SecondAge_Level3.json', footprint: 9.2 },
+  habitat: { model: 'antique/Houses_SecondAge_1_Level1.json', footprint: 4.8 },
+  stationEau: { model: 'antique/Windmill_SecondAge.json', height: 7 },
+  depotMinier: { model: 'antique/Storage_SecondAge_Level3.json', footprint: 5.6, extra: [{ model: 'antique/Resource_Rock_2.json', footprint: 1.4, x: 2.8, z: 1.8 }, { model: 'antique/Resource_Gold_1.json', footprint: 1.3, x: -2.8, z: 2 }] },
+  scierie: { model: 'antique/Storage_SecondAge_Level2.json', footprint: 5.4, extra: [{ model: 'antique/Logs.json', footprint: 2.4, x: 2.2, z: 2.4, ry: 0.3 }] },
+  recycleur: { model: 'antique/Farm_Dirt_Level1.json', footprint: 5.6, extra: [{ model: 'antique/Farm_SecondAge_Level3_Wheat.json', footprint: 5.2, x: 0, z: 0 }] },
+  caserne: { model: 'antique/Barracks_SecondAge_Level3.json', footprint: 7.4 },
+  archerie: { model: 'antique/Archery_SecondAge_Level3.json', footprint: 6.8 },
+  ecurie: { model: 'antique/Barracks_SecondAge_Level2.json', footprint: 7 },
+  atelierSiege: { model: 'antique/Barracks_SecondAge_Level1.json', footprint: 7.4 },
+  quai: { model: 'antique/Port_SecondAge_Level3.json', footprint: 8.4 },
+  tourelle: { model: 'antique/WatchTower_SecondAge_Level3.json', height: 7.5 },
+};
 /** Couleur KayKit la plus proche de chaque couleur de camp (orange, cyan, vert, violet). */
 const KK_COLOR = ['red', 'blue', 'green', 'yellow', 'yellow'];
 const KK_ALL = ['red', 'blue', 'green', 'yellow'];
@@ -121,7 +136,7 @@ function orbitalize(g: THREE.Object3D, kind: string, r: number, color: number) {
   g.userData.plaza = true;
   g.userData.height = Math.max(base, h);
 }
-export const BUILDING_MODELS = [...new Set([...Object.values(LOOKS), ...Object.values(LOOKS2), ...Object.values(BOREALE), ...Object.values(LOOKS_A1), ...Object.values(LOOKS_A2), { model: SAT }, ...Array.from({ length: 10 }, (_, i) => ({ model: `e3/tour${i + 1}.json` }))]
+export const BUILDING_MODELS = [...new Set([...Object.values(LOOKS), ...Object.values(LOOKS2), ...Object.values(BOREALE), ...Object.values(LOOKS_A1), ...Object.values(LOOKS_A2), ...Object.values(LOOKS_A3), { model: SAT }, ...Array.from({ length: 10 }, (_, i) => ({ model: `e3/tour${i + 1}.json` }))]
   .flatMap((l: BLook) => (l.model.includes('@') ? KK_ALL.map((c) => l.model.replace('@', c)) : [l.model]).concat(l.roof ? [l.roof.model] : [], (l.extra ?? []).map((e) => e.model))))];
 const CAP = 600;
 const COLORS = TEAM_COLORS.map((c) => new THREE.Color(c));
@@ -165,7 +180,7 @@ export class BuildingViews {
 
   private create(b: Building): THREE.Object3D {
     const era = this.style(b);
-    const anc = era === 1 ? LOOKS_A1[b.kind] : era === 2 ? LOOKS_A2[b.kind] : undefined;
+    const anc = era === 1 ? LOOKS_A1[b.kind] : era === 2 ? LOOKS_A2[b.kind] : era === 6 ? LOOKS_A3[b.kind] : undefined;
     const look: BLook | undefined = anc ? { ...anc, model: anc.model.replace('@', KK_COLOR[colorIndex(this.sim, b.owner)]) }
       : (altStyle(this.sim, b.owner) && BOREALE[b.kind]) || (era >= 4 && LOOKS2[b.kind]) || LOOKS[b.kind];
     let g: THREE.Object3D;
@@ -192,10 +207,10 @@ export class BuildingViews {
       }
     }
     g.position.set(b.x, this.sim.map.heightAt(b.x, b.z), b.z);
-    if (anc) g.rotation.y = ((b.id * 2.39996) % (Math.PI * 2));   // villages anciens : orientations variées
+    if (anc) g.rotation.y = b.kind === 'recycleur' ? 0 : ((b.id * 2.39996) % (Math.PI * 2));   // fermes alignées en damier   // villages anciens : orientations variées
     else if (altStyle(this.sim, b.owner) && look) g.rotation.y = Math.PI;
     g.userData.alt = altStyle(this.sim, b.owner);
-    g.userData.era = era; g.userData.born = performance.now();
+    g.userData.era = era; g.userData.kind = b.kind; g.userData.born = performance.now();
     this.scene.add(g);
     this.views.set(b.id, g);
     return g;
@@ -215,8 +230,9 @@ export class BuildingViews {
 
   /** Style d'un bâtiment selon l'âge de son camp : 1 (Antiquité), 2 (Moyen Âge), 3 (moderne), 4 (industriel), 5 (galactique). */
   private style(b: Building): number {
-    const ere = lookAge(this.sim.players[b.owner]?.ere ?? 4);
+    const real = this.sim.players[b.owner]?.ere ?? 4, ere = lookAge(real);
     if (b.kind === 'porte') return Math.min(ere, 3);
+    if (real === 3 && LOOKS_A3[b.kind]) return 6;   // âge de la poudre : style propre (6 = pierre du second âge)
     if (ere === 1 && LOOKS_A1[b.kind]) return 1;
     if (ere === 2 && (LOOKS_A2[b.kind] || LOOKS_A1[b.kind])) return LOOKS_A2[b.kind] ? 2 : 1;
     if (ere >= 5 && (LOOKS[b.kind] || BOREALE[b.kind])) return 5;
@@ -274,7 +290,7 @@ export class BuildingViews {
       if (b.kind === 'mur') { /* dessiné par WallViews */ }
       else {
         let v = this.views.get(b.id) ?? this.create(b);
-        if (v.userData.era !== this.style(b) || (v.userData.alt !== undefined && v.userData.alt !== altStyle(this.sim, b.owner))) {
+        if (v.userData.era !== this.style(b) || v.userData.kind !== b.kind || (v.userData.alt !== undefined && v.userData.alt !== altStyle(this.sim, b.owner))) {
           // Passage d'ère : le bâtiment est reconstruit dans le nouveau style.
           this.scene.remove(v); this.views.delete(b.id); v = this.create(b);
           fx?.boom(b.x, y + 1.5, b.z, Math.max(1.6, b.r * 0.6), 0.6);

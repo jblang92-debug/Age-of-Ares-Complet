@@ -140,7 +140,7 @@ export const DEPOT: Record<string, ResKind[]> = { centre: ['eau', 'bois', 'miner
 /** Bâtiments franchissables par leur camp : la porte est fermée aux autres. */
 const OPEN = new Set(['porte']);
 
-interface Group { owner: number; ver: number; deadline: number; tx: number; tz: number; fields: (Float32Array | null)[]; speed: number; extent: number; reach: number }
+interface Group { owner: number; ver: number; deadline: number; tx: number; tz: number; fields: (Float32Array | null)[]; speed: number; extent: number; reach: number; /** Cible propre à une taille d'unité quand la cible demandée lui est inaccessible. */ alt: ([number, number] | null)[] }
 type Job =
   | { t: 'gather'; node: number; phase: 'go' | 'work' | 'return'; depot: number; tries: number }
   | { t: 'build'; b: number; phase: 'go' | 'work'; tries: number }
@@ -270,6 +270,23 @@ export class Sim {
   }
 
   /** Vrai si ces deux camps sont ennemis (le camp neutre est hostile à tous). */
+  /** Passage à un âge où des bâtiments anciens n'ont plus d'usage (Archerie, Écurie, Atelier de siège) :
+   *  ils deviennent des Casernes, à l'état de santé près ; la file d'attente est remboursée. */
+  static MODERN: Record<string, string> = { archerie: 'caserne', ecurie: 'caserne', atelierSiege: 'caserne' };
+  modernize(owner: number) {
+    const P = this.players[owner]; let n = 0;
+    for (const b of this.buildings) {
+      const to = Sim.MODERN[b.kind], r = BUILDINGS[b.kind];
+      if (b.owner !== owner || !to || !r.ereMax || P.ere <= r.ereMax) continue;
+      for (const q of b.queue) { const c = UNITS[q.kind].cout as Record<string, number>; for (const k in c) (P as unknown as Record<string, number>)[k] += c[k]; }
+      b.queue.length = 0;
+      const k = b.hp / b.maxHp, nr = BUILDINGS[to];
+      this.nav.setDisc(b.x, b.z, b.r, false);
+      b.kind = to; b.maxHp = nr.pv; b.hp = Math.max(1, Math.round(nr.pv * k)); b.r = nr.rayon;
+      this.nav.setDisc(b.x, b.z, b.r, true); n++;
+    }
+    if (n) this.msg(owner, n > 1 ? `${n} bâtiments anciens deviennent des Casernes` : 'Un bâtiment ancien devient une Caserne');
+  }
   /** Taxe sur les tributs envoyés par ce joueur. */
   tributeTax(owner: number): number { const R = this.players[owner]?.research; return R?.has('banque') ? TRIBUT.banque : R?.has('monnaie') ? TRIBUT.monnaie : TRIBUT.taxe; }
   foe(a: number, b: number): boolean { if (a === b) return false; const ta = this.players[a]?.team ?? a, tb = this.players[b]?.team ?? b; return ta < 0 || tb < 0 || ta !== tb; }
@@ -419,6 +436,15 @@ export class Sim {
   }
 
   /** Vrai si un bâtiment peut être posé ici : terrain plat, libre, hors rampe et hors gisement. */
+  /** Fermes en damier, façon Age of Empires : alignées sur une grille calée sur le Centre (ou le Moulin) le plus proche. */
+  static FARM_GRID = 5.6;
+  farmSnap(owner: number, x: number, z: number): { x: number; z: number } {
+    let a: Building | null = null, bd = 45;
+    for (const b of this.buildings) if (b.owner === owner && (b.kind === 'centre' || b.kind === 'stationEau')) { const d = Math.hypot(b.x - x, b.z - z); if (d < bd) { bd = d; a = b; } }
+    if (!a) return { x, z };
+    const G = Sim.FARM_GRID, off = a.kind === 'centre' ? G * 0.5 : 0;   // le Centre est au croisement de quatre champs
+    return { x: a.x + off + Math.round((x - a.x - off) / G) * G, z: a.z + off + Math.round((z - a.z - off) / G) * G };
+  }
   canPlace(kind: string, x: number, z: number, ignore: Building[] = []): boolean {
     // Le quai, posé au bord du vide où le terrain s'affaisse, tolère un sol moins régulier (cercle de contrôle réduit).
     const r = kind === 'quai' ? BUILDINGS[kind].rayon * 0.7 : BUILDINGS[kind].rayon, lv = this.map.levelAt(x, z);
@@ -503,7 +529,7 @@ export class Sim {
     if (ground.length && tc < 0) return;
     const lim = this.map.half - 4;
     const tx = tc >= 0 ? this.nav.cx(tc) : Math.max(-lim, Math.min(lim, x)), tz = tc >= 0 ? this.nav.cz(tc) : Math.max(-lim, Math.min(lim, z));
-    const fields: (Float32Array | null)[] = [null, null, null];
+    const fields: (Float32Array | null)[] = [null, null, null], alt: ([number, number] | null)[] = [null, null, null];
     // Calcul limité à la zone utile (distance à vol d'oiseau x 1,5 + marge) ; s'il manque une unité qu'on peut rejoindre à pied, calcul complet.
     let reach = 0;
     for (const u of ground) reach = Math.max(reach, Math.hypot(u.x - tx, u.z - tz));
@@ -513,6 +539,18 @@ export class Sim {
       if (!ground.some((u) => u.wide === w)) continue;
       let f = this.nav.field(tx, tz, w, us[0].owner, reach);
       if (reach < INF && ground.some((u) => { if (u.wide !== w) return false; const c = this.nav.cell(u.x, u.z); return c >= 0 && f[c] >= INF && reg[c] === tcR; })) { reach = INF; f = this.nav.field(tx, tz, w, us[0].owner); }
+      // Cible inaccessible pour ces unités (poche fermée, passage trop étroit pour un véhicule) : elles vont au point
+      // atteignable le plus proche de la cible, au lieu de pousser droit contre l'obstacle et de rester bloquées.
+      const isLost = (u: Unit) => { if (u.wide !== w) return false; const c = this.nav.cell(u.x, u.z); return c >= 0 && f[c] >= INF; };
+      // (Hors de la zone de calcul limitée ne veut pas dire inaccessible : on juge sur le champ complet, le même à chaque partie rejouée.)
+      if (reach < INF && ground.some(isLost)) { reach = INF; f = this.nav.field(tx, tz, w, us[0].owner); }
+      const lost = ground.find(isLost);
+      if (lost && !this.map.isVoid(x, z)) {   // (cible sur l'eau : embarquement, on garde le trajet direct vers le bord)
+        const back = this.nav.field(lost.x, lost.z, w, us[0].owner);
+        let bc = -1, bd = INF;
+        for (let i = 0; i < back.length; i++) if (back[i] < INF) { const ddx = this.nav.cx(i) - tx, ddz = this.nav.cz(i) - tz, d = ddx * ddx + ddz * ddz; if (d < bd) { bd = d; bc = i; } }
+        if (bc >= 0 && bd > 4) { alt[w] = [this.nav.cx(bc), this.nav.cz(bc)]; f = this.nav.field(alt[w]![0], alt[w]![1], w, us[0].owner); }
+      }
       fields[w] = f;
     }
     let cx = 0, cz = 0;
@@ -529,7 +567,7 @@ export class Sim {
     // En formation : blindés devant, fantassins derrière. En ordre libre : les plus proches devant.
     const fwd = (u: Unit) => (u.x - cx) * fx + (u.z - cz) * fz, lat = (u: Unit) => (u.x - cx) * rx + (u.z - cz) * rz;
     const sorted = [...us].sort((a, b) => formation === 'libre' ? fwd(b) - fwd(a) || a.id - b.id : SHAPE[a.kind].rank - SHAPE[b.kind].rank || fwd(b) - fwd(a) || a.id - b.id);
-    const group: Group = { owner: us[0].owner, ver: this.nav.version, deadline: 0, tx, tz, fields, speed: formation === 'libre' ? INF : Math.min(...us.map((u) => u.speed)), extent: 0, reach };
+    const group: Group = { owner: us[0].owner, ver: this.nav.version, deadline: 0, tx, tz, fields, speed: formation === 'libre' ? INF : Math.min(...us.map((u) => u.speed)), extent: 0, reach, alt };
     // Délai de sécurité : temps de trajet estimé x 2 + 20 s.
     const longest = Math.max(...us.map((u) => { const f = u.fly ? null : fields[u.wide], c = this.nav.cell(u.x, u.z); return f && c >= 0 && f[c] < INF ? f[c] / Math.min(u.speed, group.speed) : Math.hypot(tx - u.x, tz - u.z) / Math.min(u.speed, group.speed) + 10; }));
     group.deadline = this.tick + Math.ceil((longest * 2 + 20) * 10);
@@ -545,11 +583,11 @@ export class Sim {
       const back = depth / 2 - acc - rowGap[r] / 2; acc += rowGap[r];
       row.forEach((u, k) => {
         const off = (k - (row.length - 1) / 2) * rowGap[r];
-        const sx = tx + rx * off + fx * back, sz = tz + rz * off + fz * back;
+        const a = u.fly ? null : alt[u.wide], sx = (a ? a[0] : tx) + rx * off + fx * back, sz = (a ? a[1] : tz) + rz * off + fz * back;
         const c = u.fly ? -1 : this.nav.nearestFree(sx, sz, u.wide, taken, fields[u.wide] ?? undefined);
         if (u.fly) { u.slotX = Math.max(-lim, Math.min(lim, sx)); u.slotZ = Math.max(-lim, Math.min(lim, sz)); }
         else if (c >= 0) { taken.add(c); const same = this.nav.cell(sx, sz) === c; u.slotX = same ? sx : this.nav.cx(c); u.slotZ = same ? sz : this.nav.cz(c); }
-        else { u.slotX = tx; u.slotZ = tz; }
+        else { u.slotX = a ? a[0] : tx; u.slotZ = a ? a[1] : tz; }
         u.group = group; u.moving = true; u.stuck = 0; u.best = INF; u.homeUntil = 0;
       });
     }
@@ -850,7 +888,7 @@ export class Sim {
         b.task.left -= DT * this.spd(b.owner);
         if (b.task.left <= 0) {
           const P = this.players[b.owner];
-          if (b.task.kind === 'age') { P.ere++; this.stats[b.owner].ereT[P.ere - 1] = this.tick; this.msg(b.owner, GAME.eres[P.ere - 1].nom + ' atteint (âge ' + P.ere + ')'); this.events.push({ t: 'age', owner: b.owner, ere: P.ere }); }
+          if (b.task.kind === 'age') { P.ere++; this.stats[b.owner].ereT[P.ere - 1] = this.tick; this.msg(b.owner, GAME.eres[P.ere - 1].nom + ' atteint (âge ' + P.ere + ')'); this.events.push({ t: 'age', owner: b.owner, ere: P.ere }); this.modernize(b.owner); }
           else {
             P.research.add(b.task.key); this.stats[b.owner].recherches++; this.msg(b.owner, 'Recherche terminée : ' + RESEARCH[b.task.key].nom);
             if (b.task.key === 'murs') for (const w of this.buildings) if (w.owner === b.owner && (w.kind === 'mur' || w.kind === 'porte')) { w.maxHp *= 1.5; w.hp *= 1.5; }
@@ -930,9 +968,7 @@ export class Sim {
       // le tour suivant avec l'ancien chemin (les cases devenues bloquées sont de toute façon évitées).
       if (g.ver !== nav.version && refreshed < 3) {
         g.ver = nav.version; refreshed++;
-        if (g.fields[0]) g.fields[0] = nav.field(g.tx, g.tz, 0, g.owner, g.reach);
-        if (g.fields[1]) g.fields[1] = nav.field(g.tx, g.tz, 1, g.owner, g.reach);
-        if (g.fields[2]) g.fields[2] = nav.field(g.tx, g.tz, 2, g.owner, g.reach);
+        for (const w of [0, 1, 2] as const) if (g.fields[w]) { const a = g.alt[w]; g.fields[w] = nav.field(a ? a[0] : g.tx, a ? a[1] : g.tz, w, g.owner, a ? INF : g.reach); }
       }
       const dxs = u.slotX - u.x, dzs = u.slotZ - u.z, dSlot = Math.hypot(dxs, dzs);
       if (dSlot < 0.2) { this.halt(u); u.homeUntil = this.tick + 150; continue; }

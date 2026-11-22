@@ -121,9 +121,11 @@ export class NavGrid {
    *  `reach` limite le calcul aux cases à moins de cette distance de marche (trajets courts : bien plus rapide). */
   field(tx: number, tz: number, wide: 0 | 1 | 2, owner = -1, reach = INF): Float32Array {
     if (this.gates <= 0) owner = -1;
-    const key = this.cell(tx, tz) + ':' + wide + ':' + owner;
+    // La portée fait partie de la clé : un champ complet mis en cache (par l'IA, par exemple) ne remplace jamais un champ
+    // limité demandé ailleurs, sinon une partie rejouée sans les calculs de l'IA divergerait.
+    const key = this.cell(tx, tz) + ':' + wide + ':' + owner + ':' + reach;
     const e = this.cache.get(key);
-    if (e && e.reach >= reach) return e.f;
+    if (e) return e.f;
     if (!e && this.cache.size > 40) this.cache.clear();
     const f = this.flowField(tx, tz, wide, owner, reach);
     this.cache.set(key, { f, reach });

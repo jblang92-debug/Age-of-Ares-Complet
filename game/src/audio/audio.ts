@@ -9,6 +9,10 @@ const GROUPS: Record<string, number> = { mort_inf: 4, expl_veh: 6, expl_air: 3, 
   /** Âges anciens (StarNinjas et Kenney RPG Audio, CC0) : épées, flèches, catapultes, chocs sur le bois. */ epee: 6, fleche: 4, catapulte: 3, bois: 2,
   /** Âge de la poudre (synthétisés, scripts/powder.py) : mousquet et canon. */ mousquet: 3, poudre: 3 };
 const CALM = ['deep_space_watch', 'silent_orbits', 'silent_orbits_2'], TENSE = 'command_room_tension';
+/** Musique propre à chaque âge, si les fichiers existent : musique/age1_1.mp3, age1_2.mp3 … age6_3.mp3 (sinon, les morceaux spatiaux). */
+const AGE_TRACKS = Array.from({ length: 6 }, (_, a) => [1, 2, 3].map((i) => `age${a + 1}_${i}`));
+/** Voix propres à chaque faction, si les fichiers existent : voix/<faction>/<réplique>.mp3 (sinon, les voix communes). */
+export const FACTION_VOICE_DIRS = ['ares', 'boreale', 'australe', 'solaris'];
 
 export class GameAudio {
   muted = false;
@@ -24,6 +28,12 @@ export class GameAudio {
   private music: HTMLAudioElement | null = null;
   private track = '';
   private tenseUntil = 0;
+  /** Âge du joueur (musique) et dossier de voix de sa faction. */
+  private age = 1;
+  private ageOk = new Set<string>();
+  faction = '';
+  /** Faction du joueur : ses voix propres sont chargées si elles existent. */
+  setFaction(dir: string) { if (dir === this.faction) return; this.faction = dir; if (this.ctx) for (const n of VOICES) void this.load(`voix/${dir}/${n}`); }
 
   /** À appeler dans un gestionnaire de clic. */
   unlock() {
@@ -38,6 +48,8 @@ export class GameAudio {
       for (const n of SFX) void this.load('sfx/' + n);
       for (const [g, n] of Object.entries(GROUPS)) for (let i = 1; i <= n; i++) void this.load(`sfx/${g}_${i}`);
       for (const n of VOICES) void this.load('voix/' + n);
+      if (this.faction) for (const n of VOICES) void this.load(`voix/${this.faction}/${n}`);
+      for (const list of AGE_TRACKS) for (const t of list) void fetch(`${BASE}assets/audio/musique/${t}.mp3`).then((r) => { if (r.ok && (r.headers.get('content-type') ?? 'audio').startsWith('audio')) this.ageOk.add(t); }).catch(() => {});
       this.music = new Audio(); this.music.volume = 0.32 * this.vol.musique; this.music.muted = this.muted;
       this.music.addEventListener('ended', () => this.next());
       this.next();
@@ -54,10 +66,17 @@ export class GameAudio {
 
   private next(tense = false) {
     if (!this.music) return;
-    const pool = CALM.filter((t) => t !== this.track);
+    const mine = AGE_TRACKS[this.age - 1]?.filter((t) => this.ageOk.has(t)) ?? [];
+    const pool = (mine.length ? mine : CALM).filter((t) => t !== this.track || mine.length === 1);
     this.track = tense ? TENSE : pool[Math.floor(Math.random() * pool.length)];
     this.music.src = `${BASE}assets/audio/musique/${this.track}.mp3`;
     this.music.play().catch(() => {});
+  }
+  /** Nouvel âge : la musique change au morceau suivant (tout de suite si l'âge a sa propre musique). */
+  setAge(n: number) {
+    if (n === this.age) return;
+    this.age = n;
+    if (this.music && AGE_TRACKS[n - 1]?.some((t) => this.ageOk.has(t))) this.next();
   }
   /** Passe sur le morceau de tension quand le joueur est attaqué (au plus une fois toutes les 4 minutes). */
   tension() {
@@ -79,11 +98,13 @@ export class GameAudio {
     if (this.music) { this.music.muted = m; if (!m && this.music.paused) this.music.play().catch(() => {}); }
   }
 
+  private curVoice: AudioBufferSourceNode | null = null;
   private fire(name: string, volume: number): number {
     const buf = this.buffers.get(name);
     if (!buf || !this.ctx || !this.out || this.ctx.state !== 'running') return 0;
     const src = this.ctx.createBufferSource(), g = this.ctx.createGain();
     src.buffer = buf; g.gain.value = volume; src.connect(g); g.connect((name.startsWith('voix/') ? this.voiceOut : this.sfxOut) ?? this.out); src.start();
+    if (name.startsWith('voix/')) this.curVoice = src;
     return buf.duration;
   }
   // --- Sons synthétisés (aucun fichier) : désintégration, fracas métallique, grondement d'effondrement.
@@ -183,7 +204,9 @@ export class GameAudio {
     const name = Array.isArray(key) ? key[Math.floor(Math.random() * key.length)] : key;
     const group = Array.isArray(key) ? key[0] : key;
     if ((!force && now < this.voiceUntil) || now - (this.last.get('v:' + group) ?? -1e9) < gap) return;
-    const d = this.fire('voix/' + name, 0.95);
+    // Une réplique forcée (ordre, annonce) coupe celle en cours : la sélection ne masque plus la réponse à l'ordre.
+    if (force && now < this.voiceUntil) { try { this.curVoice?.stop(); } catch { /* déjà finie */ } }
+    const d = this.fire(this.faction && this.buffers.has(`voix/${this.faction}/${name}`) ? `voix/${this.faction}/${name}` : 'voix/' + name, 0.95);
     if (d > 0) { this.last.set('v:' + group, now); this.voiceUntil = now + d * 1000 + 250; }
   }
 }

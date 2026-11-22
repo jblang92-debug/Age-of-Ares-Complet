@@ -30,6 +30,8 @@ export const EN_NAMES: Record<string, string> = {
   'Arès': 'Ares', 'Boréale': 'Boreal', 'Australe': 'Austral', 'Solaris': 'Solaris',
 };
 export const EN: Record<string, string> = {
+  'Arbre : 10 restants': 'Tree: # left', 'Baies : 10 restants': 'Berries: # left', 'Glace : 10 restants': 'Ice: # left', 'Pierre : 10 restants': 'Stone: # left', 'Or : 10 restants': 'Gold: # left', 'Solarite : 10 restants': 'Solarite: # left', 'Banc de poissons : 10 restants': 'Fish: # left',
+  'Arbre : 1 restant': 'Tree: # left', 'Baies : 1 restant': 'Berries: # left', 'Pierre : 1 restant': 'Stone: # left', 'Or : 1 restant': 'Gold: # left', 'Banc de poissons : inépuisable': 'Fish: endless', 'Baies : inépuisable': 'Berries: endless', 'Glace : inépuisable': 'Ice: endless',
   // Tribut.
   Tribut: 'Tribute', 'À qui ?': 'To whom?', 'Quoi ?': 'What?', ennemi: 'enemy', 'allié': 'ally', 'Personne à qui envoyer.': 'Nobody to send to.',
   'Taxe : 25 %, 100 envoyés = 75 reçus': 'Tax: #%, # sent = # received', 'Monnaie au Centre (Moyen Âge) : 15 %': '@ at the Town Centre (@): #%',
