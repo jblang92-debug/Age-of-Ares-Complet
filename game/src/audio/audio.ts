@@ -7,6 +7,7 @@ const VOICES = ['select1', 'select2', 'move1', 'move2', 'attack1', 'attack2', 'b
 /** Familles de sons à variantes (fichiers nom_1.mp3 … nom_n.mp3, packs CC0 Kenney, CoMiGo, Kronbits, NenadSimic). */
 const GROUPS: Record<string, number> = { mort_inf: 4, expl_veh: 6, expl_air: 3, expl_bat: 4, debris: 5, tourelle: 4, tir_lourd: 3, champ: 2,
   /** Âges anciens (StarNinjas et Kenney RPG Audio, CC0) : épées, flèches, catapultes, chocs sur le bois. */ epee: 6, fleche: 4, catapulte: 3, bois: 2,
+  /** Travail des villageois (scripts/worksfx.py : pioche synthétisée, hache et froissements Kenney RPG Audio). */ pioche: 3, hache: 3, baies: 3,
   /** Âge de la poudre (synthétisés, scripts/powder.py) : mousquet et canon. */ mousquet: 3, poudre: 3 };
 const CALM = ['deep_space_watch', 'silent_orbits', 'silent_orbits_2'], TENSE = 'command_room_tension';
 /** Musique propre à chaque âge, si les fichiers existent : musique/age1_1.mp3, age1_2.mp3 … age6_3.mp3 (sinon, les morceaux spatiaux). */

@@ -246,7 +246,7 @@ interface View {
   guns?: { o: THREE.Object3D; tag: string }[]; gunTurn?: number; /** Rotation propre du modèle chargé (modèles tournés à l'envers). */ yaw?: number;
   /** Recul procédural après un tir (s). */ kick?: number;
   /** Arme à remettre à l'horizontale : nœud, pose de repos, axe long local. */ lev?: { o: THREE.Object3D; q: THREE.Quaternion; p: THREE.Vector3; ax: THREE.Vector3 };
-  /** Villageois qui mine : vrai coup de pioche (bras en cinématique inverse, pioche tenue à deux mains). */ vsw?: { upR: THREE.Object3D; loR: THREE.Object3D; hR: THREE.Object3D; upL: THREE.Object3D; loL: THREE.Object3D; hL: THREE.Object3D; abd: THREE.Object3D; t: number; tool: THREE.Group; ham: THREE.Group; k: number };
+  /** Villageois qui mine : vrai coup de pioche (bras en cinématique inverse, pioche tenue à deux mains). */ vsw?: { upR: THREE.Object3D; loR: THREE.Object3D; hR: THREE.Object3D; upL: THREE.Object3D; loL: THREE.Object3D; hL: THREE.Object3D; abd: THREE.Object3D; t: number; tool: THREE.Group; ham: THREE.Group; axe: THREE.Group; k: number; pick: number };
   /** Villageois : outils en main et gestes supplémentaires (4 récolte, 5 chantier, 6 marche chargée). */ vt?: Record<string, THREE.Group>;
   /** Cheval : jambes résolues en cinématique inverse (les animations n'animent que les sabots). */ ik?: LegIk[];
   /** Cavalerie : cavalier, os du dos du cheval et sa hauteur au repos, animations du cavalier. */ ride?: { body: THREE.Group; bone: THREE.Object3D; y0: number; seat: number; mixer: THREE.AnimationMixer; sit: THREE.AnimationAction; hit: THREE.AnimationAction; on: boolean; legs: { up: THREE.Object3D; lo: THREE.Object3D; ft: THREE.Object3D; side: number; L: number }[] };
@@ -269,6 +269,16 @@ function pickaxe(): THREE.Group {
 }
 
 /** Marteau de charpentier en mètres : manche le long de +Z, tête en travers (le long de ±Y). */
+/** Hache de bûcheron en mètres : manche le long de +Z, fer d'un seul côté (+Y), tranchant vers l'avant du geste. */
+function woodAxe(): THREE.Group {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.03, 0.78, 6).rotateX(Math.PI / 2).translate(0, 0, 0.33), HANDLE));
+  const blade = new THREE.Shape(); blade.moveTo(0, -0.05); blade.lineTo(0.2, -0.1); blade.quadraticCurveTo(0.25, 0, 0.2, 0.1); blade.lineTo(0, 0.05); blade.closePath();
+  g.add(new THREE.Mesh(new THREE.ExtrudeGeometry(blade, { depth: 0.025, bevelEnabled: false }).translate(0, 0, -0.0125).rotateY(-Math.PI / 2).rotateX(-Math.PI / 2).translate(0, 0.02, 0.68), HEAD));
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.09).translate(0, 0, 0.68), HEAD));
+  g.traverse((m) => { m.castShadow = true; });
+  return g;
+}
 function hammer(): THREE.Group {
   const g = new THREE.Group();
   g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.03, 0.5, 6).rotateX(Math.PI / 2).translate(0, 0, 0.2), HANDLE));
@@ -553,12 +563,12 @@ export class UnitViews {
         if (look.vill) {
           body.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && /hair|beard|brow|Plane|Cube/i.test(m.name + ((m.material as THREE.Material).name ?? ''))) { const mt = (m.material as THREE.MeshStandardMaterial).clone(); mt.color.set(0x5a3a22); m.material = mt; } });   // cheveux et barbe bruns
           const clip = (n: string) => clips.find((c) => c.name === n) ?? find(look.idle!);
-          v.acts.push(v.mixer.clipAction(clip('Farm_Harvest')), v.mixer.clipAction(clip('Fixing_Kneeling')), v.mixer.clipAction(clip('Walk_Carry_Loop')), v.mixer.clipAction(Object.assign(clip('Idle_Loop').clone(), { name: 'Mine_Base' })), v.mixer.clipAction(Object.assign(clip('Idle_Loop').clone(), { name: 'Build_Base' })));
+          v.acts.push(v.mixer.clipAction(clip('Farm_Harvest')), v.mixer.clipAction(clip('Fixing_Kneeling')), v.mixer.clipAction(clip('Walk_Carry_Loop')), v.mixer.clipAction(Object.assign(clip('Idle_Loop').clone(), { name: 'Mine_Base' })), v.mixer.clipAction(Object.assign(clip('Idle_Loop').clone(), { name: 'Build_Base' })), v.mixer.clipAction(Object.assign(clip('Idle_Loop').clone(), { name: 'Chop_Base' })));
           v.acts[6].timeScale = look.runSpeed ?? 1;
           const b = (k: string) => body.getObjectByName(k);
           if (b('upperarm_r') && b('upperarm_l') && b('spine_02')) {
-            const tool = pickaxe(), ham = hammer(); tool.visible = ham.visible = false; body.add(tool, ham);
-            v.vsw = { upR: b('upperarm_r')!, loR: b('lowerarm_r')!, hR: b('hand_r')!, upL: b('upperarm_l')!, loL: b('lowerarm_l')!, hL: b('hand_l')!, abd: b('spine_02')!, t: (u.id * 0.53) % SWING_PERIOD, tool, ham, k: (look.height ?? 1.8) / 1.8 };
+            const tool = pickaxe(), ham = hammer(), axe = woodAxe(); tool.visible = ham.visible = axe.visible = false; body.add(tool, ham, axe);
+            v.vsw = { upR: b('upperarm_r')!, loR: b('lowerarm_r')!, hR: b('hand_r')!, upL: b('upperarm_l')!, loL: b('lowerarm_l')!, hL: b('hand_l')!, abd: b('spine_02')!, t: (u.id * 0.53) % SWING_PERIOD, tool, ham, axe, pick: (u.id * 0.37) % 1.7, k: (look.height ?? 1.8) / 1.8 };
           }
           const hand = body.getObjectByName('hand_r');
           if (hand) {
@@ -853,36 +863,47 @@ export class UnitViews {
   }
 
   /** Coup de pioche du villageois, en repère monde (le modèle est à l'échelle du fichier) : même arc que l'ancien ouvrier. */
-  private villSwing(v: View, dt: number, ham = false) {
-    const sw = v.vsw!, body = v.body!, tool = ham ? sw.ham : sw.tool, K = sw.k;
-    (ham ? sw.tool : sw.ham).visible = false;
-    // Marteau : à une main, geste plus court et plus vif ; pioche : à deux mains, au-dessus de la tête.
-    sw.t += dt * (ham ? 1.5 : 1);
-    const th = ham ? 0.5 + (swingAngle(sw.t) - 0.5) * 0.7 : swingAngle(sw.t);
+  /** Geste de travail du villageois, en repère monde : pioche (deux mains, au-dessus de la tête), hache (deux mains, en
+   *  diagonale depuis l'épaule droite jusqu'au tronc, à hauteur de taille), marteau (une main, court et vif).
+   *  L'outil est posé dans la main droite après la cinématique inverse : il ne la quitte jamais. */
+  private villSwing(v: View, dt: number, mode: 'pioche' | 'hache' | 'marteau') {
+    const sw = v.vsw!, body = v.body!, K = sw.k, ham = mode === 'marteau', axe = mode === 'hache';
+    const tool = ham ? sw.ham : axe ? sw.axe : sw.tool;
+    for (const t of [sw.tool, sw.ham, sw.axe]) t.visible = t === tool;
+    const speed = ham ? 1.5 : axe ? 1.15 : 1, P = SWING_PERIOD;
+    const c0 = sw.t % P; sw.t += dt * speed; const c1 = sw.t % P;
+    if (c0 < 0.86 * P && (c1 >= 0.86 * P || c1 < c0)) this.onWork?.(mode, v.pos.x, v.pos.z);   // instant du choc
+    const raw = swingAngle(sw.t), th = ham ? 0.5 + (raw - 0.5) * 0.7 : axe ? 0.15 + (raw - 0.15) * 0.72 : raw;
     body.updateMatrixWorld(true);
-    const right = new THREE.Vector3(1, 0, 0).transformDirection(body.matrixWorld), up = new THREE.Vector3(0, 1, 0), fwd = new THREE.Vector3(0, 0, 1).transformDirection(body.matrixWorld);
-    // Buste : droit quand on lève, penché vers le rocher à la frappe.
-    const lean = (ham ? 0.12 : 0.05) + (ham ? 0.2 : 0.4) * Math.max(0, Math.min(1, (th - 0.3) / 2.1));
+    const right = new THREE.Vector3(1, 0, 0).transformDirection(body.matrixWorld), fwd = new THREE.Vector3(0, 0, 1).transformDirection(body.matrixWorld);
+    // Plan du geste : vertical pour la pioche et le marteau ; incliné pour la hache (de l'épaule droite vers le tronc, devant à gauche).
+    const U = axe ? new THREE.Vector3(0, 1, 0).addScaledVector(right, 0.85).normalize() : new THREE.Vector3(0, 1, 0);
+    const F = axe ? fwd.clone().addScaledVector(right, -0.35).normalize() : fwd.clone();
+    const lean = (ham ? 0.12 : axe ? 0.04 : 0.05) + (ham ? 0.2 : axe ? 0.18 : 0.4) * Math.max(0, Math.min(1, (th - 0.3) / 2.1));
     sw.abd.getWorldQuaternion(_qa); _qa.premultiply(_qb.setFromAxisAngle(right, lean));
+    if (axe) _qa.premultiply(_qb.setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.35 - 0.6 * Math.max(0, Math.min(1, (th - 0.3) / 1.4))));   // le buste tourne avec le coup
     sw.abd.parent!.getWorldQuaternion(_qc); sw.abd.quaternion.copy(_qc.invert().multiply(_qa));
     body.updateMatrixWorld(true);
     const sh = sw.upR.getWorldPosition(new THREE.Vector3()).add(sw.upL.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
-    const r = (ham ? 0.3 : 0.43) * K, side = (ham ? 0.2 : 0.29 * Math.max(0, Math.cos(th))) * K;
-    const radial = up.clone().multiplyScalar(Math.cos(th)).addScaledVector(fwd, Math.sin(th));
-    const tangent = up.clone().multiplyScalar(-Math.sin(th)).addScaledVector(fwd, Math.cos(th));
-    const grip = sh.clone().addScaledVector(right, side).addScaledVector(up, Math.cos(th) * r - (ham ? 0.3 : 0.17) * K).addScaledVector(fwd, (ham ? 0.12 : 0.36) * K + Math.sin(th) * r);
-    // Pioche : manche dans le prolongement des bras, fer perpendiculaire (posée en repère monde, puis ramenée dans le corps).
-    tool.visible = true;
+    const r = (ham ? 0.3 : axe ? 0.4 : 0.43) * K, side = (ham ? 0.2 : axe ? 0.08 : 0.29 * Math.max(0, Math.cos(th))) * K;
+    const radial = U.clone().multiplyScalar(Math.cos(th)).addScaledVector(F, Math.sin(th)).normalize();
+    const tangent = U.clone().multiplyScalar(-Math.sin(th)).addScaledVector(F, Math.cos(th)).normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+    const grip = sh.clone().addScaledVector(right, side).addScaledVector(up, (ham ? -0.3 : axe ? -0.26 : -0.17) * K).addScaledVector(fwd, (ham ? 0.12 : axe ? 0.2 : 0.36) * K).addScaledVector(radial, r);
+    const down = up.clone().negate(), back = fwd.clone().negate();
+    // 1) la main droite vers la poignée ; 2) l'outil posé dans la main réelle ; 3) la main gauche sur le manche, plus haut.
+    reach(sw.upR, sw.loR, sw.hR, grip, right.clone().multiplyScalar(0.8).add(down).addScaledVector(back, 0.3));
+    body.updateMatrixWorld(true);
+    const hand = sw.hR.getWorldPosition(new THREE.Vector3());
     const wq = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(tangent, radial), tangent, radial));
     body.getWorldQuaternion(_qc); tool.quaternion.copy(_qc.invert().multiply(wq));
-    tool.position.copy(body.worldToLocal(grip.clone().addScaledVector(radial, (ham ? -0.04 : -0.1) * K)));
+    tool.position.copy(body.worldToLocal(hand.clone().addScaledVector(radial, -0.06 * K)));
     tool.scale.setScalar(0.72 * K / body.getWorldScale(_v2).x);
-    const handR = grip.clone().addScaledVector(radial, -0.04 * K).addScaledVector(right, 0.03 * K);
-    const handL = grip.clone().addScaledVector(radial, 0.1 * K).addScaledVector(right, -0.03 * K);
-    const down = up.clone().negate(), back = fwd.clone().negate();
-    reach(sw.upR, sw.loR, sw.hR, handR, right.clone().multiplyScalar(0.8).add(down).addScaledVector(back, 0.3));
-    if (!ham) reach(sw.upL, sw.loL, sw.hL, handL, right.clone().multiplyScalar(-0.8).add(down).addScaledVector(back, 0.3));
+    if (!ham) reach(sw.upL, sw.loL, sw.hL, hand.clone().addScaledVector(radial, 0.17 * K), right.clone().multiplyScalar(-0.8).add(down).addScaledVector(back, 0.3));
   }
+
+  /** Bruit de travail (choc de pioche, de hache, de marteau, cueillette) à jouer s'il est près de la caméra. */
+  onWork?: (kind: 'pioche' | 'hache' | 'marteau' | 'baies', x: number, z: number) => void;
 
   setSelected(ids: Set<number>) { this.selected = new Set(ids); }
 
@@ -986,7 +1007,7 @@ export class UnitViews {
         if (v.look.vill) {
           // Villageois : le geste et l'outil dépendent de la tâche.
           const node = u.job?.t === 'gather' ? this.sim.nodes[u.job.node] : undefined, build = u.job?.t === 'build' || u.job?.t === 'repair' || u.job?.t === 'capture';
-          if (st === 2) st = build ? (v.vsw ? 8 : 5) : node && node.res === 'eau' ? 4 : node && node.res !== 'bois' ? 7 : 2;
+          if (st === 2) st = build ? (v.vsw ? 8 : 5) : node && node.res === 'eau' ? 4 : node && node.res !== 'bois' ? 7 : v.vsw ? 9 : 2;
           else if (st === 1 && u.carry > 0.5) st = 6;
           if (v.vt) { const tool = st === 5 && !v.vsw ? 'marteau' : st === 2 ? 'hache' : st === 7 && !v.vsw ? 'pioche' : ''; for (const [k, t] of Object.entries(v.vt)) t.visible = k === tool; }
         }
@@ -1004,7 +1025,11 @@ export class UnitViews {
         }
         v.mixer?.update(dt);
         if (v.ik) { v.body.updateMatrixWorld(true); solveIk(v.ik); }
-        if (v.vsw) { if (st === 7 || st === 8) this.villSwing(v, dt, st === 8); else { v.vsw.tool.visible = v.vsw.ham.visible = false; v.vsw.t = (u.id * 0.53) % SWING_PERIOD; } }
+        if (v.vsw) {
+          if (st === 7 || st === 8 || st === 9) this.villSwing(v, dt, st === 8 ? 'marteau' : st === 9 ? 'hache' : 'pioche');
+          else { v.vsw.tool.visible = v.vsw.ham.visible = v.vsw.axe.visible = false; v.vsw.t = (u.id * 0.53) % SWING_PERIOD; }
+          if (st === 4) { v.vsw.pick -= dt; if (v.vsw.pick <= 0) { v.vsw.pick = 1.4 + ((u.id * 0.29) % 0.6); this.onWork?.('baies', v.pos.x, v.pos.z); } }   // cueillette
+        }
         if (v.ride) {
           // Cavalier : suit le dos du cheval ; frappe du haut du corps pendant l'attaque.
           const R = v.ride, attack = st === 2 || st === 3;

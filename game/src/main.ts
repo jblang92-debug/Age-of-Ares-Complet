@@ -375,7 +375,7 @@ function frame(now: number) {
       const hx = e.x0 + (e.x1 - e.x0) * 0.8, hz = e.z0 + (e.z1 - e.z0) * 0.8;
       fx.spark(hx, y, hz, heavy);
       if (e.kind === 'belier') { audio.sfxVar('bois', 0.6 * v, 200); fx.dust(hx, y - 0.6, hz, 1); }
-      else if (old) { if (!audio.sfxVar('epee', 0.4 * v, 70)) audio.clang(0.45 * v, heavy); }
+      else if (old) { if (!audio.sfxVar('epee', 0.6 * v, 45)) audio.clang(0.5 * v, heavy); }
       else audio.clang(0.45 * v, heavy); if (e.id !== undefined) units?.meleeHit(e.id);
       if (heavy && v > 0.6) cam.shake(0.08);
     }
@@ -402,7 +402,7 @@ function frame(now: number) {
       const sk = e.kind;
       if (sk === 'mousquetaire') audio.sfxVar('mousquet', 0.4 * v, 60);
       else if (sk === 'canon' || sk === 'galion') audio.sfxVar('poudre', 0.55 * v, 120);
-      else if (w === 'fleche') audio.sfxVar('fleche', 0.3 * v, 50);
+      else if (w === 'fleche') { audio.sfxVar('fleche', 0.5 * v, 40); const d = Math.hypot(e.x1 - e.x0, e.z1 - e.z0), iv = near(e.x1, e.z1); setTimeout(() => audio.sfxVar('bois', 0.22 * iv, 60), Math.min(900, d * 28)); }   // départ, puis la flèche qui se plante
       else if (w === 'pierre') audio.sfxVar('catapulte', 0.55 * v, 120);
       else if (w === 'fusil') audio.sfx('shot' + shotN, 0.26 * v, 70);
       // Fusil à pompe : détonation grave et sèche, puis le « clac-clac » du rechargement.
@@ -539,6 +539,8 @@ paintSpeed();
 
 world.load((f) => hud.setLoading(f)).then(() => {
   units = new UnitViews(world.scene, sim);
+  // Bruits de travail près de la caméra : pioche sur la roche et l'or, hache sur le bois, marteau, cueillette des baies.
+  units.onWork = (k, x, z) => { const v = near(x, z); if (v < 0.08) return; const [g, vol] = ({ pioche: ['pioche', 0.42], hache: ['hache', 0.5], marteau: ['bois', 0.32], baies: ['baies', 0.3] } as const)[k]; audio.sfxVar(g, vol * v, 70); };
   units.update(0, 0);
   ctrl = new Controller(world.renderer.domElement, cam, sim, units);
   buildings = new BuildingViews(world.scene, sim);

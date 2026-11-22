@@ -290,3 +290,9 @@ Dans ce dossier, depuis le Terminal :
 - Voix des factions Boréale, Australe et Solaris (voix/boreale|australe|solaris/), découpées réplique par réplique depuis les enregistrements Suno (vérifiées par reconnaissance vocale) ; Arès garde les voix d'origine.
 - Arbres KayKit « Forest Nature Pack » (CC0) et buissons ronds garnis de baies rouges.
 - Correctif d'affichage : les modèles compressés plus hauts que larges étaient écrêtés (cimes coupées, rochers creux) ; positions et normales passent en flottants avant le placement.
+
+## 22/11/2026 (soir, suite) — Gestes et bruits de travail
+
+- Outils tenus en main : la pioche, la hache et le marteau sont posés dans la main droite après la cinématique inverse (plus d'outil qui flotte) ; la main gauche se pose sur le manche.
+- Bûcheron : vraie hache à deux mains, coup en diagonale de l'épaule droite vers le tronc, buste qui pivote (remplace l'animation de coupe d'origine).
+- Bruits près de la caméra : pioche sur la pierre et l'or, hache, marteau, cueillette des baies (scripts/worksfx.py) ; épées plus présentes ; flèches : départ puis impact.
