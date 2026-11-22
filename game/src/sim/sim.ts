@@ -2,7 +2,7 @@
 // Joueur, IA et (plus tard) ami émettent les mêmes ordres via `issue()`.
 import type { TerrainMap } from '../mapgen/terrain';
 import type { MapObjects } from '../mapgen/objects';
-import { UNITS, BUILDINGS, GAME, RESEARCH, TURRETS, SHIELD, ION, RECYCLEUR, NAVETTE, GALION_PLACES, manque, type Cost } from '../data/rules';
+import { UNITS, BUILDINGS, GAME, RESEARCH, TURRETS, SHIELD, ION, RECYCLEUR, NAVETTE, GALION_PLACES, manque, RES_NOM, TRIBUT, type Cost } from '../data/rules';
 import { NavGrid, INF } from './nav';
 
 export type UnitKind = 'ouvrier' | 'fantassin' | 'eclaireur' | 'blinde' | 'artillerie' | 'drone' | 'navette' | 'ingenieur' | 'antiblindage' | 'intercepteur' | 'cuirasse'
@@ -36,11 +36,13 @@ export type Order =
   | { type: 'ferry'; ids: number[]; navette: number; x: number; z: number }
   | { type: 'age'; b: number }
   | { type: 'research'; b: number; key: string }
+  /** Tribut : ressources données à un autre joueur (taxe retenue). */
+  | { type: 'tribute'; owner: number; to: number; res: 'eau' | 'bois' | 'minerai' | 'energie' | 'solarite'; amount: number }
   | { type: 'ion'; owner: number; on: boolean }
   | { type: 'surrender'; owner: number };
 /** Agressive : poursuit l'ennemi. Défensive : revient à son poste. Tenir : ne bouge pas. Passive : ne tire que sur ordre. */
 export type Posture = 'agressive' | 'defensive' | 'tenir' | 'passive';
-export type SimEvent = { t: 'msg'; owner: number; text: string } | { t: 'age'; owner: number; ere: number } | { t: 'depleted'; node: number } | { t: 'built'; b: number }
+export type SimEvent = { t: 'msg'; owner: number; text: string } | { t: 'tribut'; from: number; to: number; res: string; amount: number; net: number } | { t: 'age'; owner: number; ere: number } | { t: 'depleted'; node: number } | { t: 'built'; b: number }
   | { t: 'shot'; x0: number; z0: number; x1: number; z1: number; big: boolean; air?: boolean; from?: boolean; melee?: boolean; kind?: UnitKind; id?: number; /** Tir d'un bâtiment (tourelle, Centre…) : son type. */ bk?: string }
   | { t: 'dead'; x: number; z: number; big: boolean; id?: number; kind?: UnitKind; fly?: boolean }
   | { t: 'destroyed'; b: number; x: number; z: number; r: number }
@@ -268,6 +270,8 @@ export class Sim {
   }
 
   /** Vrai si ces deux camps sont ennemis (le camp neutre est hostile à tous). */
+  /** Taxe sur les tributs envoyés par ce joueur. */
+  tributeTax(owner: number): number { const R = this.players[owner]?.research; return R?.has('banque') ? TRIBUT.banque : R?.has('monnaie') ? TRIBUT.monnaie : TRIBUT.taxe; }
   foe(a: number, b: number): boolean { if (a === b) return false; const ta = this.players[a]?.team ?? a, tb = this.players[b]?.team ?? b; return ta < 0 || tb < 0 || ta !== tb; }
   /** Camps qui jouent vraiment (sans le camp neutre). */
   get sides(): number[] { return this.players.map((_, i) => i).filter((i) => !this.players[i].neutral); }
@@ -480,7 +484,7 @@ export class Sim {
     switch (o.type) {
       case 'train': case 'rally': case 'age': case 'research': return mineB(o.b) ? o : null;
       case 'unload': return mineU(o.id) ? o : null;
-      case 'ion': case 'surrender': return o.owner === side ? o : null;
+      case 'ion': case 'surrender': case 'tribute': return o.owner === side ? o : null;
       case 'place': { if (o.owner !== side) return null; return { ...o, ids: ids(o.ids) }; }
       case 'kill': { if (o.owner !== side) return null; const r = { ...o, ids: ids(o.ids) }; if (o.b >= 0 && !mineB(o.b)) r.b = -1; return r.ids.length || r.b >= 0 ? r : null; }
       case 'load': case 'ferry': { if (!mineU(o.navette)) return null; const r = { ...o, ids: ids(o.ids) }; return r.ids.length ? r : null; }
@@ -806,10 +810,20 @@ export class Sim {
       if (!P || !P.research.has('barriere')) return;
       if (o.on && P.energie < this.ionCost(o.owner)) return this.msg(o.owner, 'Pas assez d\'or pour la barrière ionique');
       P.ion = o.on; this.msg(o.owner, o.on ? 'Barrière ionique activée' : 'Barrière ionique coupée');
+    } else if (o.type === 'tribute') {
+      const P = this.players[o.owner], Q = this.players[o.to];
+      if (!P || !Q || o.to === o.owner || Q.neutral || !this.sides.includes(o.to) || !(o.res in RES_NOM)) return;
+      if (!this.buildings.some((x) => x.owner === o.to) && !this.units.some((u) => u.owner === o.to)) return this.msg(o.owner, 'Ce joueur est éliminé');
+      const amount = Math.min(Math.floor(o.amount), Math.floor(P[o.res]));
+      if (!(amount > 0)) return this.msg(o.owner, manque(o.res));
+      const net = Math.floor(amount * (1 - this.tributeTax(o.owner)));
+      P[o.res] -= amount; Q[o.res] += net;
+      this.events.push({ t: 'tribut', from: o.owner, to: o.to, res: o.res, amount, net });
     } else if (o.type === 'research') {
       const b = this.bById.get(o.b), r = RESEARCH[o.key];
-      if (!b || b.kind !== 'labo' || !b.done || b.task || !r) return;
+      if (!b || !r || b.kind !== (r.lieu ?? 'labo') || !b.done || b.task) return;
       const P = this.players[b.owner];
+      if (r.requiert && !P.research.has(r.requiert)) return this.msg(b.owner, 'Il faut d\'abord : ' + RESEARCH[r.requiert].nom);
       if ((r.ere ?? 5) > P.ere) return this.msg(b.owner, 'Disponible à l\'âge ' + GAME.eres[(r.ere ?? 5) - 1].nom);
       if (P.research.has(o.key) || this.buildings.some((x) => x.owner === b.owner && x.task?.key === o.key)) return;
       const lack = this.canPay(b.owner, r.cout);

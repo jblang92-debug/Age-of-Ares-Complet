@@ -1,6 +1,7 @@
 // Traductions anglaises. EN_NAMES : noms propres du jeu (unités, bâtiments, recherches, factions, ères).
 // EN : phrases et morceaux de phrases ; « # » = un nombre, « @ » = un nom de EN_NAMES.
 export const EN_NAMES: Record<string, string> = {
+  Monnaie: 'Coinage', Banque: 'Banking',
   'Silo': 'Silo', 'Hangar': 'Hangar',
   // Âges anciens et âge de la poudre
   'Villageois': 'Villager', 'Milicien': 'Militia', 'Guerrier à la hache': 'Axeman', 'Champion': 'Champion', 'Archer': 'Archer', 'Arbalétrier': 'Crossbowman',
@@ -29,6 +30,11 @@ export const EN_NAMES: Record<string, string> = {
   'Arès': 'Ares', 'Boréale': 'Boreal', 'Australe': 'Austral', 'Solaris': 'Solaris',
 };
 export const EN: Record<string, string> = {
+  // Tribut.
+  Tribut: 'Tribute', 'À qui ?': 'To whom?', 'Quoi ?': 'What?', ennemi: 'enemy', 'allié': 'ally', 'Personne à qui envoyer.': 'Nobody to send to.',
+  'Taxe : 25 %, 100 envoyés = 75 reçus': 'Tax: #%, # sent = # received', 'Monnaie au Centre (Moyen Âge) : 15 %': '@ at the Town Centre (@): #%',
+  'Taxe sur les tributs : 15 % au lieu de 25 %': 'Tribute tax: #% instead of #%', 'Taxe sur les tributs : 5 %': 'Tribute tax: #%', "Il faut d'abord : Monnaie": 'Requires first: @', 'Ce joueur est éliminé': 'This player has been eliminated',
+  'Tribut : envoyer des ressources à un autre joueur (T)': 'Tribute: send resources to another player (T)', 'Tribut envoyé à': 'Tribute sent to', "t'envoie": 'sends you', taxe: 'tax',
   // --- Ressources façon Age of Empires
   'Embarquement dans le galion': 'Boarding the galleon', 'Aucun transport disponible : construis un Port (navette ou galion)': 'No transport available: build a Dock (shuttle or galleon)',
   'Pas d\'eau navigable près de ce rivage': 'No navigable water near this shore',

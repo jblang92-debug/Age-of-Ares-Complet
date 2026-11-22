@@ -11,7 +11,7 @@ import { RtsCamera } from './input/camera';
 import { Hud } from './ui/hud';
 import { FixedClock } from './sim/clock';
 import { Sim } from './sim/sim';
-import { GAME, UNITS, lookAge } from './data/rules';
+import { GAME, UNITS, lookAge, RES_NOM, TRIBUT } from './data/rules';
 import { BuildingViews } from './render/buildings';
 import { Effects, type Weapon } from './render/effects';
 import { Ai, type Level } from './sim/ai';
@@ -96,6 +96,8 @@ let scen: Scenario | null = null, tuto: Tutorial | null = null, bench: Bench | n
 let replay: { orders: [number, Order][]; i: number; total: number } | null = null;
 /** Partie en ligne : les ordres du joueur partent vers l'hôte et s'appliquent au tick fixé par lui. */
 let online: Online | null = null;
+/** Nom d'un camp pour les messages : pseudo en ligne, sinon faction. */
+function nameOf(i: number): string { return online ? online.name(i) : (sim.factionName(i) || 'Joueur ' + (i + 1)); }
 /** IA qui jouent un camp en ligne (places IA ou joueur déconnecté), par camp. */
 const netAis = new Map<number, Ai>();
 const rawIssue = sim.issue.bind(sim);
@@ -359,6 +361,7 @@ function frame(now: number) {
   cam.update(dt);
   for (const e of sim.events) {
     if (e.t === 'msg') { if (e.owner === me) say(e.text); }
+    else if (e.t === 'tribut') { if (e.from === me) hud.toast(`${tr('Tribut envoyé à')} ${nameOf(e.to)} : ${e.net} ${tr(RES_NOM[e.res])} (${tr('taxe')} ${e.amount - e.net})`); else if (e.to === me) { hud.toast(`${nameOf(e.from)} ${tr("t'envoie")} ${e.net} ${tr(RES_NOM[e.res])}`); audio.sfx('ok', 0.6); } }
     else if (e.t === 'ready') { if (e.owner === me) audio.voice('ready'); }
     else if (e.t === 'age') { if (e.owner === me) { audio.sfx('age', 0.6); hud.toast('Ton peuple entre dans ' + (e.ere === 2 ? 'le ' : 'l\'') + GAME.eres[e.ere - 1].nom); } }
     else if (e.t === 'built') { if (sim.building(e.b)?.owner === me && sim.building(e.b)?.kind !== 'mur') audio.voice('built'); }
@@ -837,5 +840,39 @@ world.load((f) => hud.setLoading(f)).then(() => {
   };
   (window as any).__ready = true;
 });
+// ---- Tribut : envoyer des ressources à un autre joueur (allié ou non), une taxe est retenue.
+{
+  const el = document.getElementById('trib')!, body = document.getElementById('tr-body')!;
+  const COLS = ['#ff9c4a', '#4fc3ff', '#7dffb0', '#ffd34a'];
+  const RK = ['eau', 'bois', 'minerai', 'energie', 'solarite'] as const;
+  const RI: Record<string, string> = { eau: 'r_nourriture', bois: 'r_bois', minerai: 'r_pierre', energie: 'r_or', solarite: 'r_solarite' };
+  let to = -1, res: typeof RK[number] = 'eau';
+  const alive = (i: number) => sim.buildings.some((b) => b.owner === i) || sim.units.some((u) => u.owner === i);
+  const draw = () => {
+    const P = sim.players[me], others = sim.sides.filter((i) => i !== me && !sim.players[i].neutral && alive(i));
+    if (!others.includes(to)) to = others.find((i) => !sim.foe(me, i)) ?? others[0] ?? -1;
+    const keys = RK.filter((k) => k !== 'solarite' || P.ere >= 4 || P.solarite > 0);
+    const tax = Math.round(sim.tributeTax(me) * 100);
+    const next = sim.players[me].research.has('banque') ? '' : sim.players[me].research.has('monnaie') ? ' · Banque au Centre (âge moderne) : 5 %' : ' · Monnaie au Centre (Moyen Âge) : 15 %';
+    body.innerHTML = !others.length ? '<small>Personne à qui envoyer.</small>' :
+      `<small>À qui ?</small><div class="tr-row">${others.map((i) => `<button data-to="${i}" class="${i === to ? 'on' : ''}"><b style="color:${COLS[i] ?? '#fff'}">●</b>${nameOf(i).replace(/[<>&]/g, '')} <i>${sim.foe(me, i) ? 'ennemi' : 'allié'}</i></button>`).join('')}</div>
+      <small>Quoi ?</small><div class="tr-row">${keys.map((k) => `<button data-res="${k}" class="${k === res ? 'on' : ''}"><img src="${import.meta.env.BASE_URL}assets/ui/icons/${RI[k]}.png" alt=""/>${RES_NOM[k]} <i>${Math.floor(P[k])}</i></button>`).join('')}</div>
+      <div class="tr-row tr-amt">${TRIBUT.montants.map((n) => `<button data-amt="${n}"${P[res] < n ? ' disabled' : ''}>${n}</button>`).join('')}</div>
+      <small>Taxe : ${tax} %, ${TRIBUT.montants[0]} envoyés = ${Math.floor(TRIBUT.montants[0] * (1 - tax / 100))} reçus${next}</small>`;
+  };
+  const open = (o: boolean) => { el.hidden = !o; if (o) draw(); };
+  document.getElementById('btn-trib')!.addEventListener('click', () => open(el.hidden));
+  document.getElementById('tr-close')!.addEventListener('click', () => open(false));
+  body.addEventListener('click', (e) => {
+    const t = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null; if (!t) return;
+    if (t.dataset.to) to = +t.dataset.to;
+    else if (t.dataset.res) res = t.dataset.res as typeof res;
+    else if (t.dataset.amt && to >= 0) { sim.issue({ type: 'tribute', owner: me, to, res, amount: +t.dataset.amt }); audio.sfx('click', 0.5); }
+    draw();
+  });
+  window.addEventListener('keydown', (e) => { if ((e.key === 't' || e.key === 'T') && document.body.classList.contains('playing') && document.activeElement?.tagName !== 'INPUT') open(el.hidden); });
+  setInterval(() => { if (!el.hidden) for (const b of body.querySelectorAll<HTMLButtonElement>('[data-amt]')) b.disabled = sim.players[me][res] < +b.dataset.amt!; }, 500);
+}
+
 (window as any).__game = { cam, world, map, sim, game, THREE, audio, tick: stepOnce, fx, hud, get units() { return units; } };
 requestAnimationFrame(frame);

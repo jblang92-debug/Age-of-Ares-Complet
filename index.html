@@ -244,6 +244,16 @@
   .banword{position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);padding:.18em .5em;border-radius:10px;font:900 clamp(26px,5vw,58px)/1.1 Orbitron,sans-serif;letter-spacing:.06em;
     background:radial-gradient(ellipse at center,rgba(12,22,48,.96) 55%,rgba(12,22,48,.0) 100%);color:#ffcf6a;text-shadow:0 2px 0 #8a4a12,0 0 18px rgba(255,170,60,.7);white-space:nowrap}
   #btn-chat{display:none} body.online #btn-chat{display:inline-block}
+  /* Tribut : envoyer des ressources à un autre joueur. */
+  #trib{position:absolute;left:50%;top:70px;transform:translateX(-50%);z-index:21;width:min(460px,94%);display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;background:rgba(24,12,7,.96);border:1px solid var(--accent);font:13px system-ui,sans-serif}
+  #trib[hidden]{display:none}
+  #trib h4{margin:0;display:flex;justify-content:space-between;align-items:center;font:700 15px system-ui,sans-serif}
+  #trib .tr-row{display:flex;flex-wrap:wrap;gap:6px}
+  #trib .tr-row button{min-height:38px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px}
+  #trib .tr-row button.on{outline:2px solid var(--accent);background:#5a3418}
+  #trib .tr-row button img{width:20px;height:20px}
+  #trib small{opacity:.8}
+  #trib .tr-amt button{flex:1;font-weight:700}
   #chat{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:20;width:min(560px,94%);display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:12px;background:rgba(24,12,7,.95);border:1px solid var(--accent)}
   #chat[hidden]{display:none}
   #chat .ch-quick{display:flex;flex-wrap:wrap;gap:5px}#chat .ch-quick button{min-height:34px;font-size:11px;padding:0 9px}
@@ -429,6 +439,7 @@
     <div id="sys">
       <button id="btn-menu" title="Menu de la partie (Échap)">☰</button>
       <button id="btn-chat" title="Messages aux autres joueurs (Entrée)">💬</button>
+      <button id="btn-trib" title="Tribut : envoyer des ressources à un autre joueur (T)">🤝</button>
       <button id="btn-pause" title="Pause (P)">II</button>
       <button id="btn-speed" title="Vitesse du jeu">×1</button>
       <button id="btn-quality" title="Qualité graphique">Qualité</button>
@@ -465,6 +476,7 @@
   <div id="chatlog"></div>
   <div id="chat" hidden><div class="ch-quick"><button data-q="Attaque ici !">Attaque ici !</button><button data-q="Défends-moi !">Défends-moi !</button><button data-q="Je m'en occupe">Je m'en occupe</button><button data-q="Repli !">Repli !</button><button data-q="Bien joué !">Bien joué !</button><button data-ping>📍 Signaler ici</button></div>
     <div class="ch-row"><select id="ch-to"><option value="team">Équipe</option><option value="all">Tous</option></select><input id="ch-text" maxlength="120" placeholder="Message…"/><button id="ch-send">Envoyer</button><button id="ch-close">✕</button></div></div>
+  <div id="trib" hidden><h4><span>Tribut</span><button id="tr-close">✕</button></h4><div id="tr-body"></div></div>
   <div id="gmenu" hidden><div class="gm-box"><h3>Partie en cours</h3>
     <button id="gm-resume">Reprendre</button>
     <button id="gm-save">Sauvegarder…</button>

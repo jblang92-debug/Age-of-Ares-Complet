@@ -261,3 +261,10 @@ Dans ce dossier, depuis le Terminal :
 - Côtière à 2 joueurs : la bordure s'élargit en détroit navigable qui relie les deux mers (avant, chaque camp avait sa mer fermée : pas de guerre navale). L'IA y envoie sa flotte. Génération : si aucune tentative n'est parfaite, la carte gardée est la moins mauvaise (ressources de départ en priorité) et non la dernière.
 - Villageois qui mine (pierre, or) : vrai coup de pioche à deux mains — on lève la pioche au-dessus de la tête, frappe vers le rocher, rebond (bras en cinématique inverse, buste qui accompagne). La hache reste pour le bois.
 - Icônes des âges anciens : cadrage uniforme. Le script photographie l'endroit vide puis avec l'objet ; la différence donne son contour à l'écran, et chaque icône est recadrée sur ce contour avec la même marge (rendu en double résolution). Script : scripts/icons_game2.py (hors dépôt).
+
+## 22/11/2026 — Tribut entre joueurs
+
+- Bouton 🤝 (ou touche T) en partie : choisir un joueur (allié ou ennemi), une ressource, puis 100, 200 ou 500. Aucun bâtiment requis.
+- Taxe façon Age of Empires II : 25 % retenus sur l'envoi. Recherches au Centre : Monnaie (Moyen Âge) → 15 %, puis Banque (âge moderne, après la Monnaie) → 5 %.
+- Marche en ligne comme un ordre de jeu (chacun ne peut envoyer que ses propres ressources) ; message chez l'envoyeur et chez celui qui reçoit.
+- Test : tests/j24.ts.

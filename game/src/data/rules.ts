@@ -145,7 +145,7 @@ export const BUILDINGS: Record<string, BuildingRule> = {
 };
 
 /** Recherches du Laboratoire (âge industriel). */
-export interface ResearchRule { nom: string; effet: string; cout: Cost; temps: number; /** Âge minimal (fixé plus bas). */ ere?: number }
+export interface ResearchRule { nom: string; effet: string; cout: Cost; temps: number; /** Âge minimal (fixé plus bas). */ ere?: number; /** Bâtiment où on la lance (Laboratoire par défaut). */ lieu?: string; /** Recherche à faire avant. */ requiert?: string }
 export const RESEARCH: Record<string, ResearchRule> = {
   armure:  { nom: 'Armure',            effet: '-15 % de dégâts subis par les unités', cout: { minerai: 150, solarite: 60 }, temps: 40 },
   degats:  { nom: 'Armement',          effet: '+15 % de dégâts',                      cout: { minerai: 150, solarite: 80 }, temps: 40 },
@@ -159,7 +159,12 @@ export const RESEARCH: Record<string, ResearchRule> = {
   surcharge: { nom: 'Surcharge',      effet: '+25 % de dégâts pour tourelles et défenses', cout: { minerai: 200, energie: 150, solarite: 100 }, temps: 40, ere: 3 },
   barriere: { nom: 'Barrière ionique', effet: 'Murs et portes arrêtent les appareils ennemis ; à activer, consomme de l\'énergie', cout: { minerai: 200, energie: 150, solarite: 100 }, temps: 40, ere: 3 },
   reparation: { nom: 'Réparation auto',  effet: '+3 PV/s pour les unités hors combat', cout: { minerai: 150, energie: 150, solarite: 75 }, temps: 35 },
+  // Au Centre (le Laboratoire n'existe qu'à l'âge industriel) : baisse de la taxe sur les tributs.
+  monnaie: { nom: 'Monnaie', effet: 'Taxe sur les tributs : 15 % au lieu de 25 %', cout: { eau: 150, energie: 100 }, temps: 40, lieu: 'centre' },
+  banque:  { nom: 'Banque',  effet: 'Taxe sur les tributs : 5 %', cout: { eau: 250, energie: 200 }, temps: 50, lieu: 'centre', requiert: 'monnaie' },
 };
+/** Tribut entre joueurs : taxe prélevée sur l'envoi (façon Age of Empires II), réduite par la Monnaie puis la Banque. */
+export const TRIBUT = { taxe: 0.25, monnaie: 0.15, banque: 0.05, montants: [100, 200, 500] };
 /** Tourelles : portée, dégâts, cadence (section 6). */
 export const TURRETS = {
   /** Le Centre se défend seul, comme le forum d'Age of Empires. */
@@ -189,6 +194,7 @@ const KEEP_AGE1_BUILDINGS = new Set(['centre', 'habitat', 'stationEau', 'scierie
 for (const [k, r] of Object.entries(UNITS)) if (!r.ereMax && !KEEP_AGE1_UNITS.has(k)) r.ere += 3;
 for (const [k, r] of Object.entries(BUILDINGS)) if (!r.ereMax && !KEEP_AGE1_BUILDINGS.has(k)) r.ere += 3;
 for (const r of Object.values(RESEARCH)) r.ere = (r.ere ?? 2) + 3;
+RESEARCH.monnaie.ere = AGE.moyen; RESEARCH.banque.ere = AGE.moderne;
 // Bâtiments plus solides (façon Age of Empires) : les parties durent plus longtemps.
 for (const r of Object.values(BUILDINGS)) r.pv = Math.round(r.pv * 1.5);
 // Façon Age of Empires : on bâtit en bois jusqu'à l'âge moderne ; murailles, portes et tours restent en pierre.
