@@ -55,6 +55,12 @@
   #fps{font-size:10px;opacity:.6;font-weight:500;font-family:system-ui,sans-serif}
   #sys{display:flex;gap:6px;pointer-events:auto}
   #sys button{min-width:44px;padding:0 10px;font-size:12px}
+  /* Barre du haut jamais coupée : elle passe à la ligne au lieu de déborder, et se resserre sur les écrans étroits (téléphone plié ou déplié). */
+  #top{flex-wrap:wrap;row-gap:4px}
+  #r-ere{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+  #sys{flex-wrap:wrap;justify-content:flex-end;margin-left:auto;max-width:100%}
+  @media (max-width:1100px){ #sys{gap:4px} #sys button{min-width:36px;padding:0 7px} .chip{padding:4px 7px;gap:4px;font-size:12px} #r-ere{padding:7px 9px;font-size:11px} #fps{display:none} }
+  @media (max-width:560px){ .chip{padding:3px 5px} .chip .ri{width:18px;height:18px} #r-ere{max-width:100%} }
 
   /* ---------- coin bas droit : actions rapides et mini-carte ---------- */
   #side{position:absolute;right:8px;bottom:8px;display:flex;align-items:flex-end;gap:8px}

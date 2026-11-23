@@ -14,8 +14,9 @@ import { BUILDING_MODELS } from './buildings';
 
 export type Quality = 'basse' | 'moyenne' | 'haute';
 
-const NATURE_TREES = ['nature/Tree_1_A_Color1.json', 'nature/Tree_2_A_Color1.json', 'nature/Tree_2_C_Color1.json', 'nature/Tree_3_A_Color1.json', 'nature/Tree_4_A_Color1.json', 'nature/Tree_4_B_Color1.json'];
-const NATURE_BUSH = 'nature/Bush_1_A_Color1.json';
+// Arbres et buisson Quaternius « Stylized Nature MegaKit » (CC0), allégés pour le téléphone (scripts/lodtree.mjs).
+const NATURE_TREES = ['nature/CommonTree_1.json', 'nature/CommonTree_2.json', 'nature/CommonTree_3.json', 'nature/CommonTree_4.json', 'nature/CommonTree_5.json', 'nature/Pine_1.json', 'nature/Pine_2.json', 'nature/Pine_3.json', 'nature/Pine_4.json'];
+const NATURE_BUSH = 'nature/Bush_Common.json';
 const MODELS = [
   'kaykit/landingpad_large.json', 'kaykit/lander_A.json', 'kaykit/basemodule_A.json', 'kaykit/basemodule_B.json',
   'kaykit/basemodule_garage.json', 'kaykit/roofmodule_solarpanels.json', 'kaykit/solarpanel.json',
@@ -60,8 +61,8 @@ function berriesOn(pts: { p: THREE.Vector3; n: THREE.Vector3 }[]): THREE.BufferG
   let seed = 5; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   // Points de l'enveloppe : pour une direction tirée au hasard, le sommet le plus en avant dans cette direction (jamais caché dans le feuillage).
   const ctr = new THREE.Vector3(0, top * 0.4, 0), parts: THREE.BufferGeometry[] = [], used: THREE.Vector3[] = [];
-  const r = top * 0.062;
-  for (let k = 0; k < 600 && parts.length < 18; k++) {
+  const r = top * 0.052;
+  for (let k = 0; k < 600 && parts.length < 22; k++) {
     const d = new THREE.Vector3(rnd() * 2 - 1, rnd() * 1.1 - 0.15, rnd() * 2 - 1).normalize();
     let best = pts[0], bv = -1e9; for (const q of pts) { const v = q.p.clone().sub(ctr).dot(d); if (v > bv) { bv = v; best = q; } }
     if (best.p.y < top * 0.25) continue;
@@ -231,7 +232,7 @@ export class World {
       (r) => new THREE.Matrix4().compose(new THREE.Vector3(r.x, WATER_Y + 0.08, r.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r.rot, 0)), new THREE.Vector3(1, 1, 1)));
     fish.renderOrder = 2; this.resOld.push(fish);
     // Bois : forêts (toutes époques).
-    // Arbres des âges anciens : KayKit « Forest Nature Pack » (CC0), feuillus et conifères pleins, bien lisibles de haut.
+    // Arbres : feuillus et conifères à feuillage découpé (plus naturels que des boules pleines).
     fromModels('arbre', NATURE_TREES, (r) => mat(r, r.sx * 1.5, r.sx * 1.5 * r.sy, 0.12, false));
     // Pierre : rochers gris (âges anciens) / minerai métallique (ère spatiale).
     this.resOld.push(fromModels('minerai', [A + 'Resource_Rock_1.json', A + 'Resource_Rock_2.json', A + 'Resource_Rock_3.json'], (r) => mat(r, r.sx * 1.45, r.sx * 1.25, 0.15, false)));

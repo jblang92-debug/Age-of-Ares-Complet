@@ -318,7 +318,7 @@ export class Hud {
     $('r-eau').textContent = String(Math.floor(P.eau)); $('r-bois').textContent = String(Math.floor(P.bois)); $('r-minerai').textContent = String(Math.floor(P.minerai));
     $('r-energie').textContent = String(Math.floor(P.energie)); $('r-solarite').textContent = String(Math.floor(P.solarite));
     $('r-pop').textContent = `${P.pop}/${P.popCap}`;
-    if (this.qLabel) { const want = document.body.classList.contains('compact') ? 'Q : ' + this.qLabel.replace(' (auto)', '') : 'Qualité : ' + this.qLabel; if ($('btn-quality').textContent !== want) $('btn-quality').textContent = want; }
+    if (this.qLabel) { const want = (document.body.classList.contains('compact') || innerWidth < 1100) ? 'Q : ' + this.qLabel.replace(' (auto)', '') : 'Qualité : ' + this.qLabel; if ($('btn-quality').textContent !== want) $('btn-quality').textContent = want; }
     $('r-ere').textContent = document.body.classList.contains('compact') ? GAME.eres[P.ere - 1].nom : `Âge ${P.ere} · ${GAME.eres[P.ere - 1].nom}${this.level ? (this.level.startsWith('#') ? ' · ' + this.level.slice(1) : ' · IA ' + this.level) : ''}`;
     $('r-pop').parentElement!.classList.toggle('warn', P.pop >= P.popCap);
     const idle = sim.idleWorkers(ctrl.player).length;
@@ -350,7 +350,7 @@ export class Hud {
   setSeed(_seed: number, _onNew: () => void) { /* la carte se choisit sur l'écran d'accueil */ }
   private qLabel = '';
   setQualityLabel(q: string) {
-    this.qLabel = q; $('btn-quality').textContent = document.body.classList.contains('compact') ? 'Q : ' + q.replace(' (auto)', '') : 'Qualité : ' + q; }
+    this.qLabel = q; $('btn-quality').textContent = (document.body.classList.contains('compact') || innerWidth < 1100) ? 'Q : ' + q.replace(' (auto)', '') : 'Qualité : ' + q; }
   setLoading(f: number) { $('bar').style.width = Math.round(f * 100) + '%'; }
   hideLoading() { $('loading').classList.add('gone'); }
   /** Écran d'accueil : adversaire, taille de carte, terrain, puis « Jouer ». */
