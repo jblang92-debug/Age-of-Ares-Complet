@@ -1,4 +1,5 @@
 import { dev } from './words';
+import { GEN_ICONS } from './icons_gen';
 import { MAP_KINDS, type MapKind } from '../mapgen/terrain';
 import { generateMap, SIZES, type MapSize } from '../mapgen/index';
 /** Carte choisie dans le menu (appliquée au lancement). */
@@ -12,7 +13,7 @@ import { BASE } from '../render/assets';
 import type { Controller } from '../input/controller';
 import { orient } from './orient';
 import type { Sim, Formation, Posture, UnitKind } from '../sim/sim';
-import { unitClass } from '../sim/sim';
+import { unitClass, DEPOT } from '../sim/sim';
 import { UNITS, BUILDINGS, RESEARCH, nomBat, nomUnit, dispo } from '../data/rules';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -27,14 +28,18 @@ const ICONS = new Set(['b_centre', 'b_depotMinier', 'b_centrale', 'b_habitat', '
   'u_milicien', 'u_hachier', 'u_champion', 'u_archer', 'u_arbaletrier', 'u_cavalier', 'u_chevalier', 'u_belier', 'u_catapulte', 'b_archerie', 'b_ecurie', 'b_atelierSiege',
   'u_mousquetaire', 'u_canon', 'u_galere', 'u_galion', 'u_ouvrier_a', 'u_navette_a', 'u_pecheur', 'b_scierie', 'b_mur_a1', 'b_mur_a2',
   ...['centre', 'habitat', 'stationEau', 'scierie', 'depotMinier', 'recycleur', 'caserne', 'archerie', 'ecurie', 'quai', 'tourelle', 'porte'].flatMap((k) => [`b_${k}_a1`, `b_${k}_a2`]), 'b_atelierSiege_a2',
-  'r_or', 'a_stop', 'a_repli', 'a_agressive', 'a_defensive', 'a_tenir', 'a_passive', 'a_debarquer', 'a_reparer', 'a_capturer', 'a_transporter']);
+  'r_or', 'a_stop', 'a_repli', 'a_agressive', 'a_defensive', 'a_tenir', 'a_passive', 'a_debarquer', 'a_reparer', 'a_capturer', 'a_transporter', ...GEN_ICONS]);
 /** Recherches sans illustration propre : on réutilise une icône proche. */
 const ALIAS: Record<string, string> = { t_barriere: 'b_bouclier', t_monnaie: 'r_or', t_banque: 'r_or' };
 /** Icône d'un bâtiment ou d'une unité, dans la version de l'âge du joueur quand elle existe (Antiquité, Moyen Âge et poudre). */
 const ageIcon = (n: string, ere?: number) => { if (n === 'u_ouvrier' && ICONS.has('u_ouvrier_a')) return 'u_ouvrier_a';   // le villageois à tous les âges
-  if (!ere || ere > 3) return n; const v = n.startsWith('b_') ? `${n}_a${Math.min(ere, 2)}` : `${n}_a`; return ICONS.has(v) ? v : n; };
+  if (!ere) return n;
+  // Bâtiments : l'icône de l'âge exact (photo du vrai modèle de cet âge), sinon celle de l'âge ancien le plus proche.
+  if (n.startsWith('b_')) { for (const e of ere >= 4 ? [ere] : ere === 3 ? [3, 2, 1] : ere === 2 ? [2, 1] : [1]) if (ICONS.has(`${n}_a${e}`)) return `${n}_a${e}`; return n; }
+  if (ere > 3) return n; const v = `${n}_a`; return ICONS.has(v) ? v : n; };
 const icon = (n: string, ere?: number) => (n = ALIAS[ageIcon(n, ere)] ?? ageIcon(n, ere), ICONS.has(n))  ? `<img src="${UI('icons/' + n + '.png')}" alt=""/>` : '';
 const RES = ['eau', 'bois', 'minerai', 'energie', 'solarite'] as const;
+const RI: Record<string, string> = { eau: 'r_nourriture', bois: 'r_bois', minerai: 'r_pierre', energie: 'r_or', solarite: 'r_solarite' };
 const pills = (c: object) => `<span class="cost">${RES.filter((k) => (c as Record<string, number>)[k]).map((k) => `<b class="p-${k}">${(c as Record<string, number>)[k]}</b>`).join('')}</span>`;
 
 const BN: Record<string, string> = { infanterie: 'infanterie', vehicule: 'véhicules', machine: 'machines', batiment: 'bâtiments', air: 'appareils volants', sol: 'cibles au sol', ouvrier: 'ouvriers' };
@@ -126,6 +131,10 @@ export class Hud {
     this.mini.addEventListener('pointerdown', (e) => { this.mini.setPointerCapture(e.pointerId); if (e.button !== 2) go(e); e.stopPropagation(); });
     this.mini.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'touch') go(e); });
     $('btn-quality').addEventListener('click', () => { if (this.onQuality) this.setQualityLabel(this.onQuality()); });
+    // ☰ : déroule (ou replie) les options ; un toucher ailleurs les replie.
+    $('btn-more').addEventListener('click', (e) => { e.stopPropagation(); document.body.classList.toggle('sysopen'); });
+    window.addEventListener('pointerdown', (e) => { if (document.body.classList.contains('sysopen') && !(e.target as HTMLElement).closest('#sys')) document.body.classList.remove('sysopen'); }, true);
+    $('sysdrop').addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('#btn-menu,#btn-trib,#btn-chat,#btn-rot,#btn-full')) document.body.classList.remove('sysopen'); });
     $('btn-full').addEventListener('click', () => {
       try {
         if (document.fullscreenElement) void document.exitFullscreen();
@@ -149,9 +158,9 @@ export class Hud {
     const panel = $('panel');
     const cost = (c: object) => Object.entries(c as Record<string, number>).filter(([, v]) => v).map(([k, v]) => `${v} ${(RES_NOM[k] ?? k).toLowerCase()}`).join(', ');
     const CATS: Record<string, { nom: string; items: string[] }> = {
-      eco: { nom: 'Économie', items: ['habitat', 'recycleur', 'stationEau', 'scierie', 'depotMinier', 'quai', 'raffinerie'] },
-      armee: { nom: 'Armée', items: ['caserne', 'archerie', 'ecurie', 'atelierSiege', 'arene', 'usine', 'atelier', 'hangar', 'labo', 'ascenseur'] },
-      defense: { nom: 'Défense', items: ['tourelle', 'mur', 'porte', 'tourelleAA', 'bouclier', 'defense'] },
+      eco: { nom: 'Économie', items: ['habitat', 'recycleur', 'stationEau', 'scierie', 'depotMinier', 'quai', 'raffinerie', 'marche', 'labo', 'temple'] },
+      armee: { nom: 'Armée', items: ['caserne', 'archerie', 'ecurie', 'atelierSiege', 'arene', 'usine', 'atelier', 'hangar', 'ascenseur'] },
+      defense: { nom: 'Défense', items: ['tourelle', 'chateau', 'mur', 'porte', 'tourelleAA', 'bouclier', 'defense'] },
     };
     let cat = 'eco';
     const SHORT: Record<string, string> = { habitat: 'Habitat', stationEau: 'Silo', scierie: 'Scierie', depotMinier: 'Dépôt minier', centrale: 'Centrale', quai: 'Quai orbital', caserne: 'Caserne', tourelle: 'Tourelle', mur: 'Mur', porte: 'Porte', raffinerie: 'Raffinerie', recycleur: 'Ferme', usine: 'Usine', hangar: 'Hangar', arene: 'Salle d\'armes', atelier: 'Atelier méca', archerie: 'Archerie', ecurie: 'Écurie', atelierSiege: 'Atelier de siège', labo: 'Laboratoire', tourelleAA: 'Anti-aérien', bouclier: 'Bouclier', defense: 'Défense orbitale', ascenseur: 'Ascenseur orbital' };
@@ -187,7 +196,7 @@ export class Hud {
         if (count.ouvrier) {
           const ere = sim.players[ctrl.player].ere;
           html += `<div class="row tabs">${Object.entries(CATS).map(([k, c]) => `<button data-cat="${k}" class="${cat === k ? 'on' : ''}">${c.nom}</button>`).join('')}</div>`;
-          html += `<div class="row grid">${CATS[cat].items.filter((k) => dispo(BUILDINGS[k], ere)).map((k) => ib(`data-build="${k}" title="${nomBat(k, ere)} : ${cost(sim.buildCost(ctrl.player, k))}"`, 'b_' + k, ere <= 2 && nomBat(k, ere) !== BUILDINGS[k].nom ? nomBat(k, ere) : SHORT[k], sim.buildCost(ctrl.player, k))).join('')}</div>`;
+          html += `<div class="row grid">${CATS[cat].items.filter((k) => dispo(BUILDINGS[k], ere)).map((k) => ib(`data-build="${k}" title="${nomBat(k, ere)} : ${cost(sim.buildCost(ctrl.player, k))}"`, 'b_' + k, nomBat(k, ere) !== BUILDINGS[k].nom ? nomBat(k, ere) : SHORT[k] ?? BUILDINGS[k].nom, sim.buildCost(ctrl.player, k))).join('')}</div><small class="hint2">appui long sur un bâtiment : à quoi il sert</small>`;
         }
         if (n > 1 && Object.keys(count).some((k) => k !== 'ouvrier')) html += `<div class="row">${(['libre', 'ligne', 'colonne', 'carre'] as Formation[]).map((f) => `<button data-f="${f}" class="${ctrl.formation === f ? 'on' : ''}">${f === 'carre' ? 'Carré' : f[0].toUpperCase() + f.slice(1)}</button>`).join('')}</div>`;
         if (Object.keys(count).some((k) => k !== 'ouvrier')) {
@@ -211,7 +220,7 @@ export class Hud {
         if (tips.length) html += `<div class="row grid">${tips.join('')}</div>`;
         html += `<div class="row g3"><button data-act="stop" class="ib cmd">${icon('a_stop')}Stop</button><button data-act="desel">Fermer</button><button data-act="kill" class="danger${killArm ? ' arm' : ''}">${killArm ? 'Confirmer ?' : 'Détruire'}</button></div>`;
       } else if (b) {
-        html = `<div id="sel-info">${nomBat(b.kind, sim.players[b.owner]?.ere ?? 4)} <small id="b-info"></small></div>`;
+        html = `<div id="sel-info">${nomBat(b.kind, sim.players[b.owner]?.ere ?? 4)} <small id="b-info"></small> <button data-bsheet="${b.kind}" class="info" title="À quoi sert ce bâtiment">ⓘ</button></div>`;
         const P = sim.players[ctrl.player];
         const techs = (lieu: string) => b.done && !b.task ? Object.entries(RESEARCH).filter(([k, r]) => (r.lieu ?? 'labo') === lieu && !P.research.has(k) && (!r.requiert || P.research.has(r.requiert)) && (r.ere ?? 5) <= P.ere && !sim.buildings.some((x) => x.owner === ctrl.player && x.task?.key === k))
           .map(([k, r]) => ib(`data-research="${k}" title="${r.effet}"`, 't_' + k, r.nom, r.cout)).join('') : '';
@@ -220,6 +229,12 @@ export class Hud {
         if (makes.length && b.done) html += `<div class="row"><button data-act="batch" class="batch${batch > 1 ? ' on' : ''}" title="Produire par 5">×${batch}</button><small class="hint2">appui long sur une unité : sa fiche</small></div>`;
         if (makes.length && b.done) html += `<div class="row grid">${makes.map(([k, r]) => ib(`data-train="${k}" title="${nomUnit(k, P.ere)}"`, 'u_' + k, nomUnit(k, P.ere), r.cout, queued(k))).join('')}${b.kind === 'centre' && P.ere < GAME.eres.length && !b.task ? ib('data-act="age"', P.ere >= 4 ? 'a_ere3' : 'a_ere', GAME.eres[P.ere].nom, (GAME.eres[P.ere] as { cout: object }).cout) : ''}${b.kind === 'centre' ? techs('centre') : ''}</div><div id="b-hint">Touche le sol${b.kind === 'centre' ? ' ou un gisement' : ''} pour fixer le point de ralliement.</div>`;
         else if (b.kind === 'labo' && b.done && !b.task) html += `<div class="row grid">${techs('labo')}</div>`;
+        if (b.kind === 'marche' && b.done && b.owner === ctrl.player) {
+          // Marché : acheter / vendre 100 unités contre de l'or ; le cours bouge à chaque échange.
+          const T = (['eau', 'bois', 'minerai'] as const).map((r) => `<div class="trade"><span>${icon(RI[r])}</span><button data-trade="${r}" data-buy="1" class="cmd">Acheter 100<i>${sim.price(ctrl.player, r, true)} or</i></button><button data-trade="${r}" class="cmd">Vendre 100<i>${sim.price(ctrl.player, r, false)} or</i></button></div>`).join('');
+          html += `<div class="row trades">${T}</div>`;
+          if (!b.task) { const tt = techs('marche'); if (tt) html += `<div class="row grid">${tt}</div>`; }
+        }
         if ((b.kind === 'mur' || b.kind === 'porte') && b.owner === ctrl.player && P.research.has('barriere'))
           html += `<div class="row"><button data-act="ion" class="ib cmd${P.ion ? ' on' : ''}" title="Les appareils ennemis ne peuvent plus franchir tes murs et portes">${icon('t_barriere')}<span class="tx"><span class="nm">Barrière ionique</span><i>${P.ion ? 'activée · ' + sim.ionCost(ctrl.player) + ' én./s' : 'coupée · touche pour l\'activer'}</i></span></button></div>`;
         html += `<div class="row g3"><button data-act="desel">Fermer</button>${b.kind !== 'centre' ? `<button data-act="kill" class="danger${killArm ? ' arm' : ''}">${killArm ? 'Confirmer ?' : 'Détruire'}</button>` : ''}</div>`;
@@ -236,7 +251,7 @@ export class Hud {
       const d = t.dataset;
       if (d.act !== 'kill') killArm = false;
       if (d.f) ctrl.formation = d.f as Formation;
-      else if (d.build) ctrl.startPlacing(d.build);
+      else if (d.build) { if (sheetPress) { sheetPress = false; return; } ctrl.startPlacing(d.build); }
       else if (d.train && ctrl.building >= 0) {
         if (sheetPress) { sheetPress = false; return; }
         const bb = sim.building(ctrl.building)!, r = UNITS[d.train], P = sim.players[ctrl.player];
@@ -249,6 +264,8 @@ export class Hud {
       }
       else if (d.act === 'batch') batch = batch === 1 ? 5 : 1;
       else if (d.sheet) this.sheet(d.sheet);
+      else if (d.bsheet) this.bsheet(d.bsheet);
+      else if (d.trade && ctrl.building >= 0) sim.issue({ type: 'trade', b: ctrl.building, res: d.trade as 'eau', buy: !!d.buy });
       else if (d.cat) cat = d.cat;
       else if (d.research && ctrl.building >= 0) sim.issue({ type: 'research', b: ctrl.building, key: d.research });
       else if (d.act === 'age' && ctrl.building >= 0) sim.issue({ type: 'age', b: ctrl.building });
@@ -275,9 +292,9 @@ export class Hud {
     });
     // Fiche d'unité : appui long (tactile) ou clic droit sur un bouton de production.
     let sheetPress = false, sheetT = 0, sheetDown = 0, sheetBtn: HTMLElement | null = null;
-    const openSheet = () => { if (sheetPress || !sheetBtn) return; sheetPress = true; this.sheet(sheetBtn.dataset.train!); try { navigator.vibrate?.(15); } catch { /* sans vibration */ } };
+    const openSheet = () => { if (sheetPress || !sheetBtn) return; sheetPress = true; if (sheetBtn.dataset.build) this.bsheet(sheetBtn.dataset.build); else this.sheet(sheetBtn.dataset.train!); try { navigator.vibrate?.(15); } catch { /* sans vibration */ } };
     panel.addEventListener('pointerdown', (e) => {
-      const t = (e.target as HTMLElement).closest<HTMLElement>('button[data-train]'); if (!t) return;
+      const t = (e.target as HTMLElement).closest<HTMLElement>('button[data-train],button[data-build]'); if (!t) return;
       sheetPress = false; clearTimeout(sheetT); sheetBtn = t; sheetDown = performance.now();
       sheetT = window.setTimeout(openSheet, 480);
     });
@@ -285,7 +302,7 @@ export class Hud {
     panel.addEventListener('pointerup', () => { clearTimeout(sheetT); if (sheetBtn && performance.now() - sheetDown >= 480) openSheet(); sheetBtn = null; });
     const unpress = () => { clearTimeout(sheetT); sheetBtn = null; };
     panel.addEventListener('pointercancel', unpress);
-    panel.addEventListener('contextmenu', (e) => { const t = (e.target as HTMLElement).closest<HTMLElement>('button[data-train]'); if (t) { e.preventDefault(); clearTimeout(sheetT); this.sheet(t.dataset.train!); } });
+    panel.addEventListener('contextmenu', (e) => { const t = (e.target as HTMLElement).closest<HTMLElement>('button[data-train],button[data-build]'); if (t) { e.preventDefault(); clearTimeout(sheetT); if (t.dataset.build) this.bsheet(t.dataset.build); else this.sheet(t.dataset.train!); } });
     $('sheet').addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-close]') || e.target === $('sheet')) $('sheet').hidden = true; });
     // Groupes de contrôle 1 à 5.
     const gb = $('groups');
@@ -318,7 +335,9 @@ export class Hud {
     $('r-eau').textContent = String(Math.floor(P.eau)); $('r-bois').textContent = String(Math.floor(P.bois)); $('r-minerai').textContent = String(Math.floor(P.minerai));
     $('r-energie').textContent = String(Math.floor(P.energie)); $('r-solarite').textContent = String(Math.floor(P.solarite));
     $('r-pop').textContent = `${P.pop}/${P.popCap}`;
-    if (this.qLabel) { const want = (document.body.classList.contains('compact') || innerWidth < 1100) ? 'Q : ' + this.qLabel.replace(' (auto)', '') : 'Qualité : ' + this.qLabel; if ($('btn-quality').textContent !== want) $('btn-quality').textContent = want; }
+    if (this.qLabel) { const want = '✦  Qualité : ' + this.qLabel; if ($('btn-quality').textContent !== want) $('btn-quality').textContent = want; }
+    $('chip-sol').classList.toggle('sol-off', P.ere < 5 && P.solarite <= 0);
+    { const t = `Âge ${P.ere} · ${GAME.eres[P.ere - 1].nom}`; if ($('sysage').textContent !== t) $('sysage').textContent = t; }
     $('r-ere').textContent = document.body.classList.contains('compact') ? GAME.eres[P.ere - 1].nom : `Âge ${P.ere} · ${GAME.eres[P.ere - 1].nom}${this.level ? (this.level.startsWith('#') ? ' · ' + this.level.slice(1) : ' · IA ' + this.level) : ''}`;
     $('r-pop').parentElement!.classList.toggle('warn', P.pop >= P.popCap);
     const idle = sim.idleWorkers(ctrl.player).length;
@@ -350,7 +369,7 @@ export class Hud {
   setSeed(_seed: number, _onNew: () => void) { /* la carte se choisit sur l'écran d'accueil */ }
   private qLabel = '';
   setQualityLabel(q: string) {
-    this.qLabel = q; $('btn-quality').textContent = (document.body.classList.contains('compact') || innerWidth < 1100) ? 'Q : ' + q.replace(' (auto)', '') : 'Qualité : ' + q; }
+    this.qLabel = q; $('btn-quality').textContent = '✦  Qualité : ' + q; }
   setLoading(f: number) { $('bar').style.width = Math.round(f * 100) + '%'; }
   hideLoading() { $('loading').classList.add('gone'); }
   /** Écran d'accueil : adversaire, taille de carte, terrain, puis « Jouer ». */
@@ -455,6 +474,8 @@ export class Hud {
 
   /** Âge pour lequel la mini-carte a été peinte (prairies et mer aux âges anciens, désert et vide à l'âge galactique). */
   private bgAge = 1;
+  private resLayer: HTMLCanvasElement | null = null;
+  private resT = 0;
   private paintBackground(map: TerrainMap = this.map, ere = 1): HTMLCanvasElement {
     const { half, ext, n, heights, levels } = map;
     const S = half * 2;
@@ -507,6 +528,23 @@ export class Hud {
     const colors = ['#ff8a3d', '#46d6ff', '#7be866', '#c98bff', '#bdb6aa'];
     const ci = (o: number) => this.sim!.players[o]?.neutral ? 4 : o % 4;
     const fogAt = this.fogAt;
+    // Gisements en couleur (or, pierre, baies, poisson, solarite ; forêts discrètes) : on les repère d'un coup d'œil.
+    if (this.sim) {
+      if (!this.resLayer || performance.now() - this.resT > 1500) {
+        this.resT = performance.now();
+        const c = this.resLayer ?? document.createElement('canvas'); c.width = W; c.height = H; this.resLayer = c;
+        const g = c.getContext('2d')!; g.clearRect(0, 0, W, H);
+        const COL: Record<string, string> = { or: '#ffd23a', minerai: '#e4ddd2', glace: '#ff4d6d', poisson: '#7fe8ff', solarite: '#ff9a2e', arbre: 'rgba(20,70,25,.55)' };
+        for (const n of this.sim.nodes) {
+          if (n.amount <= 0 || n.b >= 0) continue;
+          const col = COL[n.kind] ?? (myAge >= 6 && n.kind === 'glace' ? '#9fe8ff' : ''); if (!col) continue;
+          const w = n.kind === 'arbre' ? 2 : 4.2;
+          g.fillStyle = col; g.fillRect(px(n.x) - w / 2, pz(n.z) - w / 2, w, w);
+          if (n.kind !== 'arbre') { g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 0.8; g.strokeRect(px(n.x) - w / 2, pz(n.z) - w / 2, w, w); }
+        }
+      }
+      ctx.drawImage(this.resLayer, 0, 0);
+    }
     if (fogAt) { ctx.imageSmoothingEnabled = true; ctx.drawImage(this.fogLayer(), 0, 0, W, H); }
     if (this.sim) for (const u of this.sim.units) { if (fogAt && this.sim.foe(u.owner, this.ctrl?.player ?? 0) && fogAt(u.x, u.z) < 2) continue; ctx.fillStyle = colors[ci(u.owner)]; ctx.fillRect(px(u.x) - 1.5, pz(u.z) - 1.5, 3, 3); }
     if (this.sim) for (const b of this.sim.buildings) { if (fogAt && this.sim.foe(b.owner, this.ctrl?.player ?? 0) && fogAt(b.x, b.z) === 0) continue; ctx.fillStyle = colors[ci(b.owner)]; const w = Math.max(2, b.r * 1.4); ctx.fillRect(px(b.x) - w / 2, pz(b.z) - w / 2, w, w); }
@@ -562,6 +600,28 @@ export class Hud {
   }
 
   // ------------------------------------------------------------ fiche d'unité
+  /** Fiche d'un bâtiment : à quoi il sert, ce qu'il produit, son coût. */
+  bsheet(kind: string) {
+    const r = BUILDINGS[kind], sim = this.sim; if (!r) return;
+    const ere = sim && this.ctrl ? sim.players[this.ctrl.player]?.ere ?? 1 : 1;
+    const makes = Object.entries(UNITS).filter(([, u]) => u.produitA === kind && dispo(u, ere)).map(([k]) => nomUnit(k, ere));
+    const techs = Object.entries(RESEARCH).filter(([, t]) => (t.lieu ?? 'labo') === kind).map(([, t]) => t.nom + ' (âge ' + t.ere + ')');
+    const dep = DEPOT[kind]?.map((k) => (RES_NOM[k] ?? k).toLowerCase());
+    const rows: [string, string][] = [
+      ['Rôle', r.role],
+      ...(makes.length ? [['Produit', makes.join(', ')]] as [string, string][] : []),
+      ...(techs.length ? [['Recherches', techs.join(', ')]] as [string, string][] : []),
+      ...(dep?.length ? [['Dépôt', dep.join(', ')]] as [string, string][] : []),
+      ['Disponible', 'dès l\'âge ' + r.ere + (r.ereMax ? ' jusqu\'à l\'âge ' + r.ereMax : '')],
+      ['Points de vie', String(r.pv)], ['Construction', r.construction + ' s'],
+      ['Coût', Object.entries(sim ? sim.buildCost(this.ctrl!.player, kind) : r.cout).filter(([, v]) => v).map(([k, v]) => `${v} ${(RES_NOM[k] ?? k).toLowerCase()}`).join(', ') || 'gratuit'],
+    ];
+    const el = $('sheet');
+    el.innerHTML = `<div class="sh-top">${icon('b_' + kind, ere)}<div><h3>${nomBat(kind, ere)}</h3><div class="sh-tag">Bâtiment</div></div></div>
+      <table>${rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('')}</table>
+      <div class="row"><button data-close>Fermer</button></div>`;
+    el.hidden = false;
+  }
   sheet(kind: string) {
     const r = UNITS[kind], sim = this.sim; if (!r) return;
     const nm = bname;
@@ -575,7 +635,7 @@ export class Hud {
     const rows: [string, string][] = [
       ['Points de vie', String(r.pv)],
       ...(r.degats > 0 ? [['Dégâts', `${r.degats} toutes les ${fr(r.cadence)} s (${fr(dps)}/s)`], ['Portée', r.portee <= 1.5 ? 'corps à corps' : fr(r.portee) + ' m']] as [string, string][] : []),
-      ['Vitesse', fr(r.vitesse)], ['Population', String(r.pop)], ['Production', `${r.temps} s · ${BUILDINGS[r.produitA]?.nom ?? r.produitA} · ère ${r.ere}`],
+      ['Vitesse', fr(r.vitesse)], ['Population', String(r.pop)], ['Production', `${r.temps} s · ${nomBat(r.produitA, r.ere)} · âge ${r.ere}`],
       ['Coût', Object.entries(r.cout).filter(([, v]) => v).map(([k, v]) => `${v} ${(RES_NOM[k] ?? k).toLowerCase()}`).join(', ')],
     ];
     const tag = r.faction === undefined ? 'Commune à toutes les factions' : 'Propre à : ' + GAME.factions[r.faction];

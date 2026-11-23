@@ -20,7 +20,7 @@ const instant = (sim: Sim, o: number, kind: string, x: number, z: number) => {
   const c = sim.buildings.find((b) => b.owner === 0 && b.kind === 'centre')!;
   const ev = run(sim, 2, true); void ev;
   sim.issue({ type: 'age', b: c.id }); const ev1 = run(sim, 2, true);
-  check('refus sans deux bâtiments de l\'ère 2', !c.task && ev1.some((e) => e.t === 'msg' && e.text.includes('2 types')));
+  check('refus sans deux bâtiments de l\'ère 2', !c.task && ev1.some((e) => e.t === 'msg' && e.text.includes('Construis encore')));
   instant(sim, 0, 'usine', s.x, s.z); instant(sim, 0, 'labo', s.x, s.z);
   sim.issue({ type: 'age', b: c.id }); run(sim, 1350);
   check('ère 3 atteinte après 130 s', sim.players[0].ere === 6, `âge ${sim.players[0].ere}, arrivée ${sim.stats[0].ereT[5]}`);

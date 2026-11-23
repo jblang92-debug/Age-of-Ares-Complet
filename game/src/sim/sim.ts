@@ -2,7 +2,7 @@
 // Joueur, IA et (plus tard) ami émettent les mêmes ordres via `issue()`.
 import type { TerrainMap } from '../mapgen/terrain';
 import type { MapObjects } from '../mapgen/objects';
-import { UNITS, BUILDINGS, GAME, RESEARCH, TURRETS, SHIELD, ION, RECYCLEUR, NAVETTE, GALION_PLACES, manque, RES_NOM, TRIBUT, type Cost } from '../data/rules';
+import { UNITS, BUILDINGS, GAME, RESEARCH, TURRETS, SHIELD, ION, RECYCLEUR, NAVETTE, GALION_PLACES, manque, RES_NOM, TRIBUT, MARCHE, nomBat, dispo, type Cost } from '../data/rules';
 import { NavGrid, INF } from './nav';
 
 export type UnitKind = 'ouvrier' | 'fantassin' | 'eclaireur' | 'blinde' | 'artillerie' | 'drone' | 'navette' | 'ingenieur' | 'antiblindage' | 'intercepteur' | 'cuirasse'
@@ -36,6 +36,8 @@ export type Order =
   | { type: 'ferry'; ids: number[]; navette: number; x: number; z: number }
   | { type: 'age'; b: number }
   | { type: 'research'; b: number; key: string }
+  /** Marché : achète (buy) ou vend 100 unités d'une ressource contre de l'or. */
+  | { type: 'trade'; b: number; res: 'eau' | 'bois' | 'minerai'; buy: boolean }
   /** Tribut : ressources données à un autre joueur (taxe retenue). */
   | { type: 'tribute'; owner: number; to: number; res: 'eau' | 'bois' | 'minerai' | 'energie' | 'solarite'; amount: number }
   | { type: 'ion'; owner: number; on: boolean }
@@ -87,6 +89,11 @@ const AGE2 = ['caserne', 'archerie', 'ecurie', 'atelierSiege', 'tourelle'];
 /** Bâtiments exigés (2 types achevés) pour quitter l'âge `ere`. */
 const AGE3 = ['caserne', 'archerie', 'ecurie', 'atelierSiege', 'tourelle', 'quai'];
 const NEED: Record<number, string[]> = { 1: AGE1, 2: AGE2, 3: AGE3, 4: ERA1, 5: ERA2 };
+// Il faut 2 types de bâtiments de cette liste ACHEVÉS PENDANT l'âge en cours : on ne passe plus d'âge avec les seuls bâtiments d'avant.
+NEED[2] = ['marche', 'temple', 'recycleur', 'atelierSiege', 'labo', 'archerie', 'ecurie', 'tourelle'];
+NEED[3] = ['chateau', 'marche', 'temple', 'labo', 'atelierSiege', 'tourelle', 'recycleur', 'quai'];
+NEED[4] = ['arene', 'chateau', 'marche', 'temple', 'labo', 'tourelle', 'caserne', 'recycleur'];
+NEED[5] = [...ERA2, 'chateau', 'marche', 'temple'];
 /** Ascenseur orbital : temps à tenir une fois achevé (5 min). */
 export const WONDER_TICKS = 3000;
 
@@ -136,7 +143,7 @@ const SHAPE: Record<UnitKind, { radius: number; wide: 0 | 1 | 2; rank: number }>
   strikerAssaut: { radius: 1.3, wide: 1, rank: 0 },
 };
 const NODE_RES: Record<string, ResKind> = { glace: 'eau', arbre: 'bois', minerai: 'minerai', or: 'energie', solarite: 'solarite', poisson: 'eau' };
-export const DEPOT: Record<string, ResKind[]> = { centre: ['eau', 'bois', 'minerai', 'energie'], stationEau: ['eau'], scierie: ['bois'], depotMinier: ['minerai', 'energie'], raffinerie: ['solarite'] };
+export const DEPOT: Record<string, ResKind[]> = { centre: ['eau', 'bois', 'minerai', 'energie'], stationEau: ['eau'], recycleur: ['eau'], scierie: ['bois'], depotMinier: ['minerai', 'energie'], raffinerie: ['solarite'] };
 /** Bâtiments franchissables par leur camp : la porte est fermée aux autres. */
 const OPEN = new Set(['porte']);
 
@@ -146,7 +153,7 @@ type Job =
   | { t: 'build'; b: number; phase: 'go' | 'work'; tries: number }
   | { t: 'repair' | 'capture'; b: number; phase: 'go' | 'work'; tries: number; t0: number };
 
-export interface Player { /** Équipe (camps alliés) ; -1 : camp neutre, hostile à tous (sentinelles). */ team: number; neutral?: boolean; eau: number; bois: number; minerai: number; energie: number; solarite: number; pop: number; popCap: number; ere: number; research: Set<string>; doctrine: Doctrine; /** Faction (indice dans GAME.factions) : style et unités propres. */ faction: number; /** Barrière ionique allumée (après la recherche). */ ion?: boolean }
+export interface Player { /** Équipe (camps alliés) ; -1 : camp neutre, hostile à tous (sentinelles). */ team: number; neutral?: boolean; eau: number; bois: number; minerai: number; energie: number; solarite: number; pop: number; popCap: number; ere: number; research: Set<string>; doctrine: Doctrine; /** Faction (indice dans GAME.factions) : style et unités propres. */ faction: number; /** Barrière ionique allumée (après la recherche). */ ion?: boolean; /** Cours du Marché (or pour 100). */ cours?: { eau: number; bois: number; minerai: number } }
 export interface ResNode { id: number; kind: 'glace' | 'arbre' | 'minerai' | 'or' | 'solarite' | 'poisson'; res: ResKind; x: number; z: number; r: number; amount: number; /** Recycleur : bâtiment associé (source infinie, un seul ouvrier). */ b: number }
 export interface Building {
   id: number; owner: number; kind: string; x: number; z: number; r: number; hp: number; maxHp: number;
@@ -425,7 +432,7 @@ export class Sim {
     this.buildings.push(b); this.bById.set(b.id, b);
     if (OPEN.has(kind)) this.nav.setGate(x, z, b.r, owner);
     else {
-      this.nav.setDisc(x, z, b.r, true);
+      this.nav.setDisc(x, z, BUILDINGS[kind].bloque ?? b.r, true);
       // Les unités qui se trouvaient sur l'emplacement sont déplacées à côté.
       for (const u of this.units) if (!u.fly && !this.pass(u, u.x, u.z)) {
         const c = this.nav.nearestFree(u.x, u.z, u.wide);
@@ -437,12 +444,15 @@ export class Sim {
 
   /** Vrai si un bâtiment peut être posé ici : terrain plat, libre, hors rampe et hors gisement. */
   /** Fermes en damier, façon Age of Empires : alignées sur une grille calée sur le Centre (ou le Moulin) le plus proche. */
-  static FARM_GRID = 5.6;
+  /** Côté d'une ferme (maison + 4 champs) plus un passage entre deux fermes. */
+  static FARM_GRID = 10.6;
+  /** Champs d'une ferme : décalage depuis la maison. */
+  static FIELD = 2.6;
   farmSnap(owner: number, x: number, z: number): { x: number; z: number } {
-    let a: Building | null = null, bd = 45;
+    let a: Building | null = null, bd = 60;
     for (const b of this.buildings) if (b.owner === owner && (b.kind === 'centre' || b.kind === 'stationEau')) { const d = Math.hypot(b.x - x, b.z - z); if (d < bd) { bd = d; a = b; } }
     if (!a) return { x, z };
-    const G = Sim.FARM_GRID, off = a.kind === 'centre' ? G * 0.5 : 0;   // le Centre est au croisement de quatre champs
+    const G = Sim.FARM_GRID, off = 0;
     return { x: a.x + off + Math.round((x - a.x - off) / G) * G, z: a.z + off + Math.round((z - a.z - off) / G) * G };
   }
   canPlace(kind: string, x: number, z: number, ignore: Building[] = []): boolean {
@@ -461,7 +471,19 @@ export class Sim {
       for (let a = 0; a < 6.28 && !edge; a += 0.4) if (this.map.isVoid(x + Math.cos(a) * (r + 6), z + Math.sin(a) * (r + 6))) edge = true;
       if (!edge) return false;
     }
+    // Les champs d'une ferme se traversent mais ne se bâtissent pas : rien ne se pose dessus, et une ferme ne chevauche rien.
+    const farmR = (k: string, rr: number) => k === 'recycleur' ? rr * 0.92 : rr;
+    if (this.buildings.some((b) => (b.kind === 'recycleur' || kind === 'recycleur') && Math.hypot(b.x - x, b.z - z) < farmR(b.kind, b.r) + farmR(kind, r) - 0.2)) return false;
     return !this.buildings.some((b) => OPEN.has(b.kind) && Math.hypot(b.x - x, b.z - z) < b.r + r);
+  }
+  /** Rayon à atteindre pour déposer à ce bâtiment (la ferme : sa maison). */
+  private reachR(b: Building): number { return BUILDINGS[b.kind]?.bloque ?? b.r; }
+  /** Passage d'âge : types de bâtiments achevés pendant l'âge en cours qui comptent, et ceux qui manquent (2 exigés). */
+  ageNeed(owner: number): { done: string[]; options: string[]; ok: boolean } {
+    const P = this.players[owner], list = NEED[P.ere] ?? ERA2, since = P.ere > 1 ? this.stats[owner].ereT[P.ere - 1] ?? 0 : -1;
+    const done = [...new Set(this.buildings.filter((x) => x.owner === owner && x.done && list.includes(x.kind) && (x.doneT ?? 0) >= since).map((x) => x.kind))];
+    const options = list.filter((k) => !done.includes(k) && BUILDINGS[k] && dispo(BUILDINGS[k], P.ere));
+    return { done, options, ok: done.length >= 2 };
   }
 
   // --- Porte intégrée à un mur (comme dans Empire Earth) : posée sur un mur existant, elle remplace ses poteaux.
@@ -508,7 +530,7 @@ export class Sim {
     const mineB = (id: number) => { const b = this.building(id); return !!b && b.owner === side; };
     const ids = (a: number[]) => (Array.isArray(a) ? a.filter((id) => typeof id === 'number' && mineU(id)) : []);
     switch (o.type) {
-      case 'train': case 'rally': case 'age': case 'research': return mineB(o.b) ? o : null;
+      case 'train': case 'rally': case 'age': case 'research': case 'trade': return mineB(o.b) ? o : null;
       case 'unload': return mineU(o.id) ? o : null;
       case 'ion': case 'surrender': case 'tribute': return o.owner === side ? o : null;
       case 'place': { if (o.owner !== side) return null; return { ...o, ids: ids(o.ids) }; }
@@ -637,7 +659,13 @@ export class Sim {
     return best;
   }
   private startGather(u: Unit, n: ResNode) {
-    if (n.b >= 0 && this.units.some((v) => v !== u && v.job?.t === 'gather' && v.job.node === n.id)) { this.msg(u.owner, 'Le recycleur a déjà son ouvrier'); return; }
+    if (n.b >= 0 && this.bById.get(n.b)?.owner !== u.owner) return;   // pas de récolte dans la ferme d'un autre
+    if (n.b >= 0 && this.units.some((v) => v !== u && v.job?.t === 'gather' && v.job.node === n.id)) {
+      // Champ déjà pris : il prend un autre champ libre de la même ferme, sinon il n'y a plus de place.
+      const free = this.nodes.find((m) => m.b === n.b && m.amount > 0 && !this.units.some((v) => v !== u && v.job?.t === 'gather' && v.job.node === m.id));
+      if (!free) { this.msg(u.owner, 'Cette ferme a déjà ses 4 ouvriers'); return; }
+      n = free;
+    }
     if ((u.kind === 'pecheur') !== (n.kind === 'poisson')) return;   // la pêche aux bateaux, le reste aux villageois
     if (!this.buildings.some((b) => b.owner === u.owner && b.done && (u.kind === 'pecheur' ? b.kind === 'quai' : DEPOT[b.kind]?.includes(n.res)))) { this.msg(u.owner, n.res === 'solarite' ? 'Construis une Raffinerie pour récolter la solarite' : 'Aucun dépôt disponible'); return; }
     u.working = false; u.lastNode = n.id;
@@ -691,7 +719,7 @@ export class Sim {
       } else {
         if (u.group) return;
         const d = this.bById.get(j.depot);
-        if (d && Math.hypot(d.x - u.x, d.z - u.z) <= d.r + u.radius + (u.wide === 2 ? 5 : 1.7)) {
+        if (d && Math.hypot(d.x - u.x, d.z - u.z) <= this.reachR(d) + u.radius + (u.wide === 2 ? 5 : 1.7)) {
           if (u.carryKind) { this.players[u.owner][u.carryKind] += Math.round(u.carry); this.stats[u.owner].recolte += Math.round(u.carry); this.stats[u.owner].rec[u.carryKind] += Math.round(u.carry); }
           u.carry = 0; u.carryKind = null; j.tries = 0;
           if (n.amount > 0) { j.phase = 'go'; this.approach(u, n.x, n.z, n.r, ((u.id % 5) - 2) * 0.3); }
@@ -715,7 +743,13 @@ export class Sim {
           b.progress = 1; b.done = true; b.hp = b.maxHp; b.doneT = this.tick; this.events.push({ t: 'built', b: b.id }); this.stats[b.owner].batimentsConstruits++;
           if (b.kind === 'ascenseur') for (let o = 0; o < this.players.length; o++) this.msg(o, o === b.owner ? 'Ascenseur orbital achevé : tiens-le 5 minutes pour gagner' : 'L\'ennemi a achevé un Ascenseur orbital : détruis-le en moins de 5 minutes !');
           if (b.kind === 'bouclier') b.shield = SHIELD.max * 0.3;
-          if (b.kind === 'recycleur') { b.node = this.nodes.length; this.nodes.push({ id: b.node, kind: 'glace', res: 'eau', x: b.x, z: b.z, r: b.r, amount: 1e9, b: b.id }); this.startGather(u, this.nodes[b.node]); if (u.job?.t === 'gather') return; }
+          if (b.kind === 'recycleur') {
+            // Quatre champs autour de la maison, un ouvrier chacun ; les autres bâtisseurs prennent aussi un champ.
+            b.node = this.nodes.length; const F = Sim.FIELD;
+            for (const [fx, fz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const id = this.nodes.length; this.nodes.push({ id, kind: 'glace', res: 'eau', x: b.x + fx * F, z: b.z + fz * F, r: 1.1, amount: 1e9, b: b.id }); }
+            for (const v of this.units) if (v !== u && v.owner === u.owner && v.job?.t === 'build' && v.job.b === b.id) { this.startGather(v, this.nodes[b.node]); if ((v.job as Job | null)?.t === 'build') v.job = null; }
+            this.startGather(u, this.nodes[b.node]); if (u.job?.t === 'gather') return;
+          }
           this.afterBuild(u);
         }
       }
@@ -725,13 +759,13 @@ export class Sim {
     const d = u.carryKind ? this.nearestDepot(u, u.carryKind) : null;
     if (!d) { u.job = null; return; }
     j.depot = d.id;
-    this.approach(u, d.x, d.z, d.r, ((u.id % 5) - 2) * 0.25 + j.tries * 0.8);
+    this.approach(u, d.x, d.z, this.reachR(d), ((u.id % 5) - 2) * 0.25 + j.tries * 0.8);
   }
 
   private count() {
     for (const p of this.players) { p.pop = 0; p.popCap = 0; }
     for (const u of this.units) { this.players[u.owner].pop += UNITS[u.kind].pop; for (const c of u.cargo) this.players[u.owner].pop += UNITS[c.kind].pop; }
-    for (const b of this.buildings) if (b.done) this.players[b.owner].popCap += b.kind === 'centre' ? GAME.popCentre : b.kind === 'habitat' ? GAME.popParHabitat : 0;
+    for (const b of this.buildings) if (b.done) this.players[b.owner].popCap += b.kind === 'centre' ? GAME.popCentre : b.kind === 'habitat' ? GAME.popParHabitat : b.kind === 'chateau' ? 10 : 0;
     for (const p of this.players) p.popCap = Math.min(p.popCap, GAME.popMax);
     if (this.sandbox >= 0) this.players[this.sandbox].popCap = Sim.SANDBOX.pop;
   }
@@ -836,9 +870,8 @@ export class Sim {
       const b = this.bById.get(o.b); if (!b || b.kind !== 'centre' || b.task) return;
       const P = this.players[b.owner], next = GAME.eres[P.ere];
       if (!next || !('cout' in next)) return this.msg(b.owner, 'Âge maximal atteint');
-      const need = NEED[P.ere] ?? ERA2;
-      const kinds = new Set(this.buildings.filter((x) => x.owner === b.owner && x.done && need.includes(x.kind)).map((x) => x.kind));
-      if (kinds.size < 2) return this.msg(b.owner, 'Il faut 2 types de bâtiments de l\'âge en cours');
+      const need = this.ageNeed(b.owner);
+      if (!need.ok) return this.msg(b.owner, 'Construis encore ' + (2 - need.done.length) + ' bâtiment' + (need.done.length ? '' : 's différents') + ' pendant cet âge : ' + need.options.slice(0, 5).map((k) => nomBat(k, P.ere)).join(', '));
       const lack = this.canPay(b.owner, next.cout);
       if (lack) return this.msg(b.owner, manque(lack));
       this.pay(b.owner, next.cout);
@@ -848,6 +881,13 @@ export class Sim {
       if (!P || !P.research.has('barriere')) return;
       if (o.on && P.energie < this.ionCost(o.owner)) return this.msg(o.owner, 'Pas assez d\'or pour la barrière ionique');
       P.ion = o.on; this.msg(o.owner, o.on ? 'Barrière ionique activée' : 'Barrière ionique coupée');
+    } else if (o.type === 'trade') {
+      const b = this.bById.get(o.b); if (!b || b.kind !== 'marche' || !b.done || !['eau', 'bois', 'minerai'].includes(o.res)) return;
+      const P = this.players[b.owner], px = this.price(b.owner, o.res, o.buy);
+      if (o.buy) { if (P.energie < px) return this.msg(b.owner, manque('energie')); P.energie -= px; P[o.res] += MARCHE.lot; }
+      else { if (P[o.res] < MARCHE.lot) return this.msg(b.owner, manque(o.res)); P[o.res] -= MARCHE.lot; P.energie += px; }
+      const c = (P.cours ??= { eau: MARCHE.base, bois: MARCHE.base, minerai: MARCHE.base });
+      c[o.res] = Math.max(MARCHE.min, Math.min(MARCHE.max, c[o.res] + (o.buy ? MARCHE.pas : -MARCHE.pas)));
     } else if (o.type === 'tribute') {
       const P = this.players[o.owner], Q = this.players[o.to];
       if (!P || !Q || o.to === o.owner || Q.neutral || !this.sides.includes(o.to) || !(o.res in RES_NOM)) return;
@@ -937,6 +977,9 @@ export class Sim {
         const P = this.players[u.owner], regen = (P.research.has('reparation') ? 3 : 0) + (P.doctrine === 'frappe' && u.kind !== 'ouvrier' ? 1 : 0);
         if (regen) u.hp = Math.min(u.maxHp, u.hp + regen);
       }
+      // Temple / église / hôpital : soigne les unités alliées proches (pas les machines ni les appareils).
+      for (const b of this.buildings) if (b.kind === 'temple' && b.done) for (const u of this.units)
+        if (u.hp < u.maxHp && this.players[u.owner].team === this.players[b.owner].team && !u.fly && !MACHINE.has(u.kind) && Math.hypot(u.x - b.x, u.z - b.z) < 11) u.hp = Math.min(u.maxHp, u.hp + 4);
       for (const b of this.buildings) if (b.kind === 'ascenseur' && b.done && this.winner < 0 && this.tick - (b.doneT ?? this.tick) >= WONDER_TICKS) {
         this.winner = this.players[b.owner].team; this.events.push({ t: 'over', winner: this.winner, wonder: true });
       }
@@ -1280,6 +1323,11 @@ export class Sim {
     }
   }
 
+  /** Prix au Marché (en or) de 100 unités : le cours bouge à chaque échange ; la Monnaie et la Banque réduisent la marge. */
+  price(owner: number, res: 'eau' | 'bois' | 'minerai', buy: boolean): number {
+    const P = this.players[owner], c = P.cours?.[res] ?? MARCHE.base, m = P.research.has('banque') ? MARCHE.marge[2] : P.research.has('monnaie') ? MARCHE.marge[1] : MARCHE.marge[0];
+    return Math.round(buy ? c * (1 + m) : c * (1 - m));
+  }
   private towers() {
     for (const b of this.buildings) {
       const T = TURRETS[b.kind as keyof typeof TURRETS];
@@ -1315,8 +1363,8 @@ export class Sim {
       if (b.hp > 0) continue;
       this.buildings.splice(i, 1); this.bById.delete(b.id);
       this.stats[b.owner].batimentsPerdus++;
-      if (OPEN.has(b.kind)) this.nav.setGate(b.x, b.z, b.r, -1); else this.nav.setDisc(b.x, b.z, b.r, false);
-      if (b.node >= 0) this.nodes[b.node].amount = 0;
+      if (OPEN.has(b.kind)) this.nav.setGate(b.x, b.z, b.r, -1); else this.nav.setDisc(b.x, b.z, BUILDINGS[b.kind].bloque ?? b.r, false);
+      if (b.node >= 0) for (const n of this.nodes) if (n.b === b.id) n.amount = 0;
       this.events.push({ t: 'destroyed', b: b.id, x: b.x, z: b.z, r: b.r });
       if (b.kind === 'centre' && this.winner < 0) {
         // Un camp sans Centre est éliminé ; victoire : la dernière équipe qui possède encore un Centre.

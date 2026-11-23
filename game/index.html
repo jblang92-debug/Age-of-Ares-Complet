@@ -56,11 +56,21 @@
   #sys{display:flex;gap:6px;pointer-events:auto}
   #sys button{min-width:44px;padding:0 10px;font-size:12px}
   /* Barre du haut jamais coupée : elle passe à la ligne au lieu de déborder, et se resserre sur les écrans étroits (téléphone plié ou déplié). */
-  #top{flex-wrap:wrap;row-gap:4px}
-  #r-ere{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
-  #sys{flex-wrap:wrap;justify-content:flex-end;margin-left:auto;max-width:100%}
-  @media (max-width:1100px){ #sys{gap:4px} #sys button{min-width:36px;padding:0 7px} .chip{padding:4px 7px;gap:4px;font-size:12px} #r-ere{padding:7px 9px;font-size:11px} #fps{display:none} }
-  @media (max-width:560px){ .chip{padding:3px 5px} .chip .ri{width:18px;height:18px} #r-ere{max-width:100%} }
+  /* Une seule ligne : ressources, âge, Pause et ☰ ; le reste se déroule sous ☰. */
+  #top{flex-wrap:nowrap}
+  #res{flex:0 1 auto;min-width:0;overflow:hidden}
+  #r-ere{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+  #sys{flex-wrap:nowrap;margin-left:auto;position:relative;flex:none}
+  #sysdrop{display:none;position:absolute;top:calc(100% + 6px);right:0;flex-direction:column;gap:5px;min-width:240px;padding:8px;
+    background:var(--panel2,#1b120c);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 10px 30px #000a;z-index:30}
+  body.sysopen #sysdrop{display:flex}
+  body.sysopen #btn-more{border-color:var(--accent);color:var(--accent)}
+  #sysdrop button{width:100%;justify-content:flex-start;text-align:left;white-space:nowrap;min-height:38px;padding:0 12px;font-size:13px}
+  #sysdrop button[data-lb]::after{content:attr(data-lb);margin-left:10px;font-weight:600}
+  #sysage{font-size:11px;color:var(--accent);font-weight:700;padding:2px 4px 4px;letter-spacing:.04em}
+  .chip.sol-off{display:none}
+  @media (max-width:1100px){ #sys{gap:4px} #sys button{min-width:38px;padding:0 8px} .chip{padding:3px 6px;gap:4px;font-size:11.5px} .chip .ri{width:19px;height:19px} #r-ere{padding:7px 9px;font-size:11px} #fps{display:none} }
+  @media (max-width:700px){ #r-ere{display:none} .chip{padding:3px 4px;gap:3px;font-size:11px} .chip .ri{width:17px;height:17px} #top{gap:4px;padding:6px 5px} }
 
   /* ---------- coin bas droit : actions rapides et mini-carte ---------- */
   #side{position:absolute;right:8px;bottom:8px;display:flex;align-items:flex-end;gap:8px}
@@ -237,7 +247,7 @@
   #scen.flash{border-color:#9dffb8;box-shadow:0 0 18px #9dffb855}
   /* Doigt : boutons de groupes assez grands pour être touchés sans erreur. */
   /* Téléphone tenu droit : la barre du haut passe sur deux lignes au lieu de sortir de l'écran. */
-  @media (max-aspect-ratio: 1/1){ #top{flex-wrap:wrap;row-gap:4px} #top .spacer,#fps{display:none} #sys{margin-left:auto} }
+  @media (max-aspect-ratio: 1/1){ #top .spacer,#fps{display:none} #sys{margin-left:auto} }
   #picker{position:fixed;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;background:rgba(8,4,2,.62);backdrop-filter:blur(3px)}
   #picker[hidden]{display:none}
   #picker .gm-box{max-height:88vh;overflow:auto}
@@ -435,22 +445,27 @@
       <div class="chip" title="Bois"><img class="ri" data-ui="icons/r_bois.png" alt=""/><span id="r-bois">0</span></div>
       <div class="chip" title="Pierre"><img class="ri" data-ui="icons/r_pierre.png" alt=""/><span id="r-minerai">0</span></div>
       <div class="chip" title="Or"><img class="ri" data-ui="icons/r_or.png" alt=""/><span id="r-energie">0</span></div>
-      <div class="chip" title="Solarite"><img class="ri" data-ui="icons/r_solarite.png" alt=""/><span id="r-solarite">0</span></div>
+      <div class="chip sol-off" id="chip-sol" title="Solarite"><img class="ri" data-ui="icons/r_solarite.png" alt=""/><span id="r-solarite">0</span></div>
       <div class="chip" title="Population"><img class="ri" data-ui="icons/r_pop.png" alt=""/><span id="r-pop">0/0</span></div>
     </div>
     <div id="r-ere"></div>
     <span class="spacer"></span>
     <span id="fps"></span>
     <div id="sys">
-      <button id="btn-menu" title="Menu de la partie (Échap)">☰</button>
-      <button id="btn-chat" title="Messages aux autres joueurs (Entrée)">💬</button>
-      <button id="btn-trib" title="Tribut : envoyer des ressources à un autre joueur (T)">🤝</button>
       <button id="btn-pause" title="Pause (P)">II</button>
-      <button id="btn-speed" title="Vitesse du jeu">×1</button>
-      <button id="btn-quality" title="Qualité graphique">Qualité</button>
-      <button id="btn-sound" title="Son">♪</button>
-      <button id="btn-rot" title="Pivoter l'écran">⟳</button>
-      <button id="btn-full" title="Plein écran">⛶</button>
+      <button id="btn-more" title="Options : menu, vitesse, son, qualité, tribut…">☰</button>
+      <!-- Le reste se déroule sous ☰ : la barre du haut tient sur une seule ligne, même sur téléphone. -->
+      <div id="sysdrop">
+        <div id="sysage"></div>
+        <button id="btn-menu" data-lb="Menu de la partie" title="Menu de la partie (Échap)">⚙</button>
+        <button id="btn-speed" data-lb="Vitesse" title="Vitesse du jeu">×1</button>
+        <button id="btn-sound" data-lb="Son" title="Son">♪</button>
+        <button id="btn-quality" title="Qualité graphique">Qualité</button>
+        <button id="btn-trib" data-lb="Tribut aux alliés" title="Tribut : envoyer des ressources à un autre joueur (T)">🤝</button>
+        <button id="btn-chat" data-lb="Messages" title="Messages aux autres joueurs (Entrée)">💬</button>
+        <button id="btn-rot" data-lb="Pivoter l'écran" title="Pivoter l'écran">⟳</button>
+        <button id="btn-full" data-lb="Plein écran" title="Plein écran">⛶</button>
+      </div>
     </div>
   </div>
   <div id="side">

@@ -2,6 +2,9 @@
 // EN : phrases et morceaux de phrases ; « # » = un nombre, « @ » = un nom de EN_NAMES.
 export const EN_NAMES: Record<string, string> = {
   Monnaie: 'Coinage', Banque: 'Banking',
+  'Monastère': 'Monastery', 'Scriptorium': 'Scriptorium', 'Université': 'University', 'Académie des sciences': 'Academy of Sciences', 'Institut stellaire': 'Stellar Institute',
+  'Marché': 'Market', 'Bourse': 'Stock Exchange', 'Bourse galactique': 'Galactic Exchange', 'Église': 'Church', 'Cathédrale': 'Cathedral', 'Hôpital': 'Hospital', 'Centre médical': 'Medical Center', 'Clinique orbitale': 'Orbital Clinic',
+  'Château': 'Castle', 'Fort': 'Fort', 'Bunker': 'Bunker', 'Forteresse orbitale': 'Orbital Fortress', 'Forteresse': 'Fortress', 'Port industriel': 'Industrial Dock', 'Ferme mécanisée': 'Mechanized Farm', 'Outils de récolte': 'Harvesting Tools',
   'Silo': 'Silo', 'Hangar': 'Hangar',
   // Âges anciens et âge de la poudre
   'Villageois': 'Villager', 'Milicien': 'Militia', 'Guerrier à la hache': 'Axeman', 'Champion': 'Champion', 'Archer': 'Archer', 'Arbalétrier': 'Crossbowman',

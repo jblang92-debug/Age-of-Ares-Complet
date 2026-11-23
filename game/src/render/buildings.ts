@@ -9,6 +9,11 @@ import { WallViews, wallPairs, makeGate, makeTurret, animateTurret, turretFired,
 
 type BLook = { model: string; footprint?: number; height?: number; roof?: { model: string; footprint: number };
   /** Éléments posés autour du modèle principal (en mètres, avant rotation). */ extra?: { model: string; footprint?: number; height?: number; x: number; z: number; ry?: number }[] };
+/** Ferme : une maison au milieu et quatre champs autour (un ouvrier par champ). */
+const F = 2.6;
+const fields = (dirt: string, crop: string): NonNullable<BLook['extra']> =>
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].flatMap(([x, z]) => [{ model: dirt, footprint: 4.7, x: x * F, z: z * F }, { model: crop, footprint: 4.2, x: x * F, z: z * F }]);
+const farm = (house: string, fp: number, crop: string): BLook => ({ model: house, footprint: fp, extra: fields('antique/Farm_Dirt_Level1.json', crop) });
 const LOOKS: Record<string, BLook> = {
   centre: { model: 'kaykit/basemodule_A.json', footprint: 9, roof: { model: 'kaykit/roofmodule_solarpanels.json', footprint: 5.6 } },
   habitat: { model: 'kaykit/basemodule_B.json', footprint: 5 },
@@ -18,7 +23,10 @@ const LOOKS: Record<string, BLook> = {
   caserne: { model: 'kaykit/basemodule_garage.json', footprint: 7 },
   quai: { model: 'kaykit/landingpad_large.json', footprint: 8.4 },
   raffinerie: { model: 'kaykit/cargodepot_B.json', footprint: 5.6 },
-  recycleur: { model: 'kaykit/windturbine_low.json', height: 4 },
+  recycleur: { ...farm('kaykit/windturbine_low.json', 2.4, 'antique/Farm_SecondAge_Level3_Wheat.json'), height: 4.2, footprint: undefined },
+  marche: { model: 'kaykit/cargo_A.json', footprint: 4.6, extra: [{ model: 'kaykit/containers_A.json', footprint: 2.6, x: 2.4, z: 1.6, ry: 0.5 }, { model: 'kaykit/spacetruck.json', footprint: 2.2, x: -2.4, z: 1.8, ry: 1.2 }] },
+  temple: { model: 'quat/GeodesicDome.json', footprint: 5.6, extra: [{ model: 'kaykit/lights.json', footprint: 1.2, x: 2.6, z: 2.4 }, { model: 'kaykit/lights.json', footprint: 1.2, x: -2.6, z: 2.4 }] },
+  chateau: { model: 'shs/Barracks.json', footprint: 8.2, extra: [{ model: 'kaykit/structure_tall.json', footprint: 2.4, x: 3.6, z: -3.2 }, { model: 'kaykit/structure_tall.json', footprint: 2.4, x: -3.6, z: -3.2 }] },
   scierie: { model: 'kaykit/containers_A.json', footprint: 5 },
   usine: { model: 'kaykit/basemodule_C.json', footprint: 8.4 },
   hangar: { model: 'kaykit/basemodule_D.json', footprint: 7.6 },
@@ -46,7 +54,8 @@ const LOOKS_A1: Record<string, BLook> = {
   stationEau: { model: 'antique/Windmill_FirstAge.json', height: 6.5 },
   depotMinier: { model: 'antique/Storage_FirstAge_Level1.json', footprint: 5.4, extra: [{ model: 'antique/Resource_Rock_2.json', footprint: 1.4, x: 2.6, z: 1.6 }, { model: 'antique/Resource_Gold_1.json', footprint: 1.3, x: -2.6, z: 1.8 }] },
   scierie: { model: 'antique/Resource_PineTree_Group_Cut.json', footprint: 5.2, extra: [{ model: 'antique/Logs.json', footprint: 2.4, x: 0.4, z: -0.3, ry: 0.4 }] },
-  recycleur: { model: 'antique/Farm_Dirt_Level1.json', footprint: 5.6, extra: [{ model: 'antique/Farm_FirstAge_Level3_Wheat.json', footprint: 5.2, x: 0, z: 0 }] },
+  recycleur: farm('antique/Houses_FirstAge_2_Level1.json', 2.6, 'antique/Farm_FirstAge_Level3_Wheat.json'),
+  labo: { model: 'antique/Temple_FirstAge_Level1.json', footprint: 6.2 },
   caserne: { model: 'antique/Barracks_FirstAge_Level1.json', footprint: 7.2 },
   archerie: { model: 'antique/Archery_FirstAge_Level1.json', footprint: 6.8 },
   ecurie: { model: 'antique/Storage_FirstAge_Leve3.json', footprint: 7 },
@@ -60,7 +69,10 @@ const LOOKS_A2: Record<string, BLook> = {
   stationEau: { model: 'medieval/windmill_@.json', footprint: 4.8 },
   depotMinier: { model: 'medieval/mine_@.json', footprint: 5.6 },
   scierie: { model: 'antique/Storage_SecondAge_Level1.json', footprint: 5.4, extra: [{ model: 'antique/Logs.json', footprint: 2.4, x: 2.2, z: 2.4, ry: 0.3 }] },
-  recycleur: { model: 'antique/Farm_Dirt_Level1.json', footprint: 5.6, extra: [{ model: 'antique/Farm_SecondAge_Level3_Wheat.json', footprint: 5.2, x: 0, z: 0 }] },
+  recycleur: farm('medieval/home_B_@.json', 2.8, 'antique/Farm_SecondAge_Level3_Wheat.json'),
+  labo: { model: 'medieval/tower_B_@.json', footprint: 4.6 },
+  marche: { model: 'medieval/market_@.json', footprint: 7 },
+  temple: { model: 'medieval/church_@.json', footprint: 6.2 },
   caserne: { model: 'medieval/barracks_@.json', footprint: 7.4 },
   archerie: { model: 'medieval/archeryrange_@.json', footprint: 6.8 },
   ecurie: { model: 'medieval/tavern_@.json', footprint: 6.6 },
@@ -75,7 +87,11 @@ const LOOKS_A3: Record<string, BLook> = {
   stationEau: { model: 'antique/Windmill_SecondAge.json', height: 7 },
   depotMinier: { model: 'antique/Storage_SecondAge_Level3.json', footprint: 5.6, extra: [{ model: 'antique/Resource_Rock_2.json', footprint: 1.4, x: 2.8, z: 1.8 }, { model: 'antique/Resource_Gold_1.json', footprint: 1.3, x: -2.8, z: 2 }] },
   scierie: { model: 'antique/Storage_SecondAge_Level2.json', footprint: 5.4, extra: [{ model: 'antique/Logs.json', footprint: 2.4, x: 2.2, z: 2.4, ry: 0.3 }] },
-  recycleur: { model: 'antique/Farm_Dirt_Level1.json', footprint: 5.6, extra: [{ model: 'antique/Farm_SecondAge_Level3_Wheat.json', footprint: 5.2, x: 0, z: 0 }] },
+  recycleur: farm('antique/Houses_SecondAge_2_Level1.json', 2.8, 'antique/Farm_SecondAge_Level3_Wheat.json'),
+  labo: { model: 'antique/TowerHouse_SecondAge.json', height: 8 },
+  marche: { model: 'antique/Market_SecondAge_Level3.json', footprint: 7 },
+  temple: { model: 'antique/Temple_SecondAge_Level1.json', footprint: 6.4 },
+  chateau: { model: 'medieval/castle_@.json', footprint: 8.6 },
   caserne: { model: 'antique/Barracks_SecondAge_Level3.json', footprint: 7.4 },
   archerie: { model: 'antique/Archery_SecondAge_Level3.json', footprint: 6.8 },
   ecurie: { model: 'antique/Barracks_SecondAge_Level2.json', footprint: 7 },

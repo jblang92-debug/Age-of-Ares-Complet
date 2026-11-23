@@ -187,6 +187,9 @@ export class Controller {
       const fishers = [...this.selection].filter((id) => this.sim.get(id)?.kind === 'pecheur');
       if (node && node.kind === 'poisson' && fishers.length) { this.sim.issue({ type: 'gather', ids: fishers, node: node.id }); this.onOrder?.(p, 0x8fd3ff); return; }
       if (node && node.kind !== 'poisson' && ws.length) { this.sim.issue({ type: 'gather', ids: ws, node: node.id }); this.onOrder?.(p, 0x8fd3ff); return; }
+      // Toucher sa ferme (la maison comme les champs) : les ouvriers prennent chacun un champ libre.
+      const farm = b && b.kind === 'recycleur' && b.owner === this.player && b.done ? this.sim.nodes.find((n) => n.b === b.id) : undefined;
+      if (farm && ws.length) { this.sim.issue({ type: 'gather', ids: ws, node: farm.id }); this.onOrder?.(p, 0x8fd3ff); return; }
       if (b && b.owner === this.player && !b.done && ws.length) { this.sim.issue({ type: 'assist', ids: ws, b: b.id }); this.onOrder?.(p, 0xffe07a); return; }
       const fx = this.fixers();
       if (b && b.owner === this.player && b.done && b.hp < b.maxHp && fx.length) { this.sim.issue({ type: 'repair', ids: fx, b: b.id }); this.onOrder?.(p, 0x9dffb8); this.onMsg?.('Réparation'); return; }

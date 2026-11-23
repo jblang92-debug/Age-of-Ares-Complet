@@ -111,7 +111,7 @@ export const UNITS: Record<string, UnitRule> = {
   navette:   { temps: 25, nom: 'Navette',   ere: 1, produitA: 'quai',    cout: { minerai: 120, energie: 40 },              pop: 2, pv: 220, vitesse: 6,   degats: 0,  cadence: 1,   portee: 0, viseAir: false, vole: true },
 };
 
-export interface BuildingRule { /** Rayon au sol, en mètres. */ rayon: number; nom: string; ere: number; /** Dernier âge où on peut le bâtir. */ ereMax?: number; cout: Cost; pv: number; construction: number; role: string }
+export interface BuildingRule { /** Rayon au sol, en mètres. */ rayon: number; nom: string; ere: number; /** Dernier âge où on peut le bâtir. */ ereMax?: number; cout: Cost; pv: number; construction: number; role: string; /** Rayon réellement infranchissable (la ferme : seule sa maison bloque, les champs se traversent). */ bloque?: number }
 
 export const BUILDINGS: Record<string, BuildingRule> = {
   centre:     { rayon: 4.7, nom: 'Centre de commandement', ere: 1, cout: {},                                         pv: 3600, construction: 0,  role: 'Ouvriers, dépôt, passage d\'ère, condition de victoire' },
@@ -125,9 +125,9 @@ export const BUILDINGS: Record<string, BuildingRule> = {
   mur:        { rayon: 1.0, nom: 'Mur',                    ere: 1, cout: { minerai: 5 },                             pv: 300,  construction: 5,  role: 'Bloque le passage' },
   porte:      { rayon: 2.6, nom: 'Porte',                  ere: 1, cout: { minerai: 30 },                            pv: 500,  construction: 10, role: 'S\'ouvre pour son camp' },
   tourelle:   { rayon: 1.6, nom: 'Tourelle',               ere: 1, cout: { minerai: 120, energie: 40 },              pv: 600,  construction: 25, role: 'Anti-sol, portée 9' },
-  quai:       { rayon: 4.2, nom: 'Quai orbital',           ere: 1, cout: { minerai: 150 },                           pv: 800,  construction: 35, role: 'Transport, navires de guerre aux âges anciens ; au bord de l\'eau' },
+  quai:       { rayon: 4.2, nom: 'Quai orbital',           ere: 1, cout: { minerai: 150 },                           pv: 800,  construction: 35, role: 'Bateaux de pêche, transport et navires de guerre ; au bord de l\'eau' },
   raffinerie: { rayon: 2.8, nom: 'Raffinerie de solarite', ere: 2, cout: { minerai: 150 },                           pv: 500,  construction: 30, role: 'Dépôt de solarite' },
-  recycleur:  { rayon: 2.6, nom: 'Ferme hydroponique',    ere: 1, cout: { minerai: 60 },                            pv: 200,  construction: 15, role: 'Nourriture infinie, lente (un ouvrier)' },
+  recycleur:  { rayon: 5.6, nom: 'Ferme hydroponique',    ere: 2, cout: { minerai: 150 },                           pv: 500,  construction: 40, role: 'Une maison et 4 champs : nourriture sans fin pour 4 ouvriers, qui la déposent à la maison', bloque: 1.5 },
   usine:      { rayon: 4.2, nom: 'Usine',                  ere: 2, cout: { minerai: 200, energie: 100 },             pv: 1200, construction: 45, role: 'Blindés' },
   hangar:     { rayon: 3.8, nom: 'Hangar de drones',       ere: 2, cout: { minerai: 150, energie: 50, solarite: 50 }, pv: 900, construction: 40, role: 'Drones' },
   tourelleAA: { rayon: 1.6, nom: 'Tourelle anti-aérienne', ere: 2, cout: { minerai: 120, energie: 50 },              pv: 500,  construction: 25, role: 'Anti-air, portée 9' },
@@ -141,27 +141,31 @@ export const BUILDINGS: Record<string, BuildingRule> = {
   archerie:   { rayon: 3.4, nom: 'Archerie',               ere: 1, ereMax: 3, cout: { minerai: 150 },                pv: 800,  construction: 30, role: 'Archers, arbalétriers, mousquetaires' },
   ecurie:     { rayon: 3.6, nom: 'Écurie',                 ere: 1, ereMax: 3, cout: { minerai: 170 },                pv: 850,  construction: 35, role: 'Cavalerie' },
   atelierSiege: { rayon: 3.8, nom: 'Atelier de siège',     ere: 2, ereMax: 3, cout: { minerai: 220, energie: 40 },   pv: 900,  construction: 40, role: 'Béliers, catapultes, canons' },
-  labo:       { rayon: 3.2, nom: 'Laboratoire',            ere: 2, cout: { minerai: 150, solarite: 50 },             pv: 700,  construction: 40, role: '6 recherches' },
+  labo:       { rayon: 3.2, nom: 'Laboratoire',            ere: 1, cout: { minerai: 150 },                           pv: 700,  construction: 40, role: 'Recherches : récolte, armures, armes, portée… (de nouvelles à chaque âge)' },
+  // ---- Bâtiments ajoutés pour que chaque âge demande de nouveaux chantiers.
+  marche:     { rayon: 3.6, nom: 'Bourse',                 ere: 2, cout: { minerai: 175 },                           pv: 900,  construction: 40, role: 'Achète et vend nourriture, bois et pierre contre de l\'or ; Monnaie et Banque (taxe des tributs)' },
+  temple:     { rayon: 3.2, nom: 'Centre médical',         ere: 2, cout: { minerai: 150, energie: 25 },              pv: 800,  construction: 40, role: 'Soigne les unités alliées proches (rayon 11)' },
+  chateau:    { rayon: 4.4, nom: 'Forteresse',             ere: 3, cout: { minerai: 350, energie: 100 },             pv: 2600, construction: 70, role: 'Forteresse : tire sur les ennemis (portée 12), +10 population' },
 };
 
 /** Recherches du Laboratoire (âge industriel). */
 export interface ResearchRule { nom: string; effet: string; cout: Cost; temps: number; /** Âge minimal (fixé plus bas). */ ere?: number; /** Bâtiment où on la lance (Laboratoire par défaut). */ lieu?: string; /** Recherche à faire avant. */ requiert?: string }
 export const RESEARCH: Record<string, ResearchRule> = {
-  armure:  { nom: 'Armure',            effet: '-15 % de dégâts subis par les unités', cout: { minerai: 150, solarite: 60 }, temps: 40 },
-  degats:  { nom: 'Armement',          effet: '+15 % de dégâts',                      cout: { minerai: 150, solarite: 80 }, temps: 40 },
-  recolte: { nom: 'Outils de forage',  effet: '+20 % de vitesse de récolte',          cout: { minerai: 120, solarite: 40 }, temps: 35 },
-  murs:    { nom: 'Murs renforcés',    effet: '+50 % de PV pour murs et portes',      cout: { minerai: 150, solarite: 30 }, temps: 30 },
-  portee:  { nom: 'Optiques',          effet: '+2 de portée pour les tourelles',      cout: { minerai: 120, solarite: 60 }, temps: 35 },
+  armure:  { nom: 'Armure',            effet: '-15 % de dégâts subis par les unités', cout: { minerai: 150, energie: 60 }, temps: 40, ere: 2 },
+  degats:  { nom: 'Armement',          effet: '+15 % de dégâts',                      cout: { minerai: 150, energie: 80 }, temps: 40, ere: 3 },
+  recolte: { nom: 'Outils de récolte', effet: '+20 % de vitesse de récolte',          cout: { eau: 120, minerai: 80 }, temps: 35, ere: 1 },
+  murs:    { nom: 'Murs renforcés',    effet: '+50 % de PV pour murs et portes',      cout: { minerai: 150, energie: 30 }, temps: 30, ere: 2 },
+  portee:  { nom: 'Optiques',          effet: '+2 de portée pour les tourelles',      cout: { minerai: 120, energie: 60 }, temps: 35, ere: 3 },
   moteurs: { nom: 'Moteurs',           effet: '+15 % de vitesse pour les véhicules',  cout: { minerai: 120, solarite: 60 }, temps: 35 },
   propulseurs: { nom: 'Propulseurs',     effet: '+25 % de vitesse et +2 places pour les navettes', cout: { minerai: 150, energie: 75, solarite: 25 }, temps: 25 },
   reseau:  { nom: 'Réseau énergétique', effet: '-20 % d\'énergie pour les bâtiments',  cout: { minerai: 125, energie: 100, solarite: 25 }, temps: 25 },
   nano:    { nom: 'Nano-blindage',     effet: '-15 % de dégâts subis (en plus de l\'Armure)', cout: { minerai: 250, solarite: 150 }, temps: 45, ere: 3 },
   surcharge: { nom: 'Surcharge',      effet: '+25 % de dégâts pour tourelles et défenses', cout: { minerai: 200, energie: 150, solarite: 100 }, temps: 40, ere: 3 },
   barriere: { nom: 'Barrière ionique', effet: 'Murs et portes arrêtent les appareils ennemis ; à activer, consomme de l\'énergie', cout: { minerai: 200, energie: 150, solarite: 100 }, temps: 40, ere: 3 },
-  reparation: { nom: 'Réparation auto',  effet: '+3 PV/s pour les unités hors combat', cout: { minerai: 150, energie: 150, solarite: 75 }, temps: 35 },
-  // Au Centre (le Laboratoire n'existe qu'à l'âge industriel) : baisse de la taxe sur les tributs.
-  monnaie: { nom: 'Monnaie', effet: 'Taxe sur les tributs : 15 % au lieu de 25 %', cout: { eau: 150, energie: 100 }, temps: 40, lieu: 'centre' },
-  banque:  { nom: 'Banque',  effet: 'Taxe sur les tributs : 5 %', cout: { eau: 250, energie: 200 }, temps: 50, lieu: 'centre', requiert: 'monnaie' },
+  reparation: { nom: 'Réparation auto',  effet: '+3 PV/s pour les unités hors combat', cout: { minerai: 150, energie: 150 }, temps: 35, ere: 4 },
+  // Au Marché : baisse de la taxe sur les tributs et de la marge du marchand.
+  monnaie: { nom: 'Monnaie', effet: 'Tributs taxés 15 % au lieu de 25 % ; meilleurs prix au Marché', cout: { eau: 150, energie: 100 }, temps: 40, lieu: 'marche' },
+  banque:  { nom: 'Banque',  effet: 'Tributs taxés 5 % ; prix encore meilleurs au Marché', cout: { eau: 250, energie: 200 }, temps: 50, lieu: 'marche', requiert: 'monnaie' },
 };
 /** Tribut entre joueurs : taxe prélevée sur l'envoi (façon Age of Empires II), réduite par la Monnaie puis la Banque. */
 export const TRIBUT = { taxe: 0.25, monnaie: 0.15, banque: 0.05, montants: [100, 200, 500] };
@@ -173,6 +177,8 @@ export const TURRETS = {
   tourelleAA: { portee: 9, degats: 25, cadence: 1,   air: true },
   /** Sentinelle neutre : garde les gros gisements (option « Centre disputé »). */
   sentinelle: { portee: 9, degats: 22, cadence: 1.2, air: false },
+  /** Château / fort / forteresse : la grosse défense des âges intermédiaires. */
+  chateau:    { portee: 12, degats: 30, cadence: 1.4, air: false },
   /** Ère 3 : vise le sol et l'air. */
   defense:    { portee: 14, degats: 45, cadence: 2.5, air: false, both: true },
 };
@@ -182,7 +188,9 @@ export const SHIELD = { rayon: 10, max: 1500, recharge: 20, energieParSeconde: 2
 /** Recycleur d'humidité : eau récoltée par seconde par son ouvrier (source infinie mais lente). */
 /** Navette : nombre d'unités transportées. */
 export const NAVETTE = { places: 8 };
-export const RECYCLEUR = { parSeconde: 0.5 };
+export const RECYCLEUR = { parSeconde: 0.7 };
+/** Marché : lots de 100, cours de départ 100 or, ±4 par échange (borné), marge du marchand (sans, Monnaie, Banque). */
+export const MARCHE = { lot: 100, base: 100, pas: 4, min: 30, max: 300, marge: [0.3, 0.2, 0.1] };
 
 // ---- Âges : les ères 1, 2 et 3 d'origine deviennent les âges 3 (moderne), 4 (industriel) et 5 (galactique).
 // Ce qui existe dès l'Antiquité garde l'âge 1 : Centre, bâtiments de base, ouvrier, navette (bateau aux âges anciens).
@@ -190,28 +198,41 @@ export const RECYCLEUR = { parSeconde: 0.5 };
 export const AGE = { antique: 1, moyen: 2, poudre: 3, moderne: 4, industriel: 5, galactique: 6 } as const;
 export const AGE_MAX = GAME.eres.length;
 const KEEP_AGE1_UNITS = new Set(['ouvrier', 'navette']);
-const KEEP_AGE1_BUILDINGS = new Set(['centre', 'habitat', 'stationEau', 'scierie', 'depotMinier', 'recycleur', 'centrale', 'caserne', 'mur', 'porte', 'tourelle', 'quai']);
+const KEEP_AGE1_BUILDINGS = new Set(['centre', 'habitat', 'stationEau', 'scierie', 'depotMinier', 'recycleur', 'centrale', 'caserne', 'mur', 'porte', 'tourelle', 'quai', 'labo', 'marche', 'temple', 'chateau']);
 for (const [k, r] of Object.entries(UNITS)) if (!r.ereMax && !KEEP_AGE1_UNITS.has(k)) r.ere += 3;
 for (const [k, r] of Object.entries(BUILDINGS)) if (!r.ereMax && !KEEP_AGE1_BUILDINGS.has(k)) r.ere += 3;
-for (const r of Object.values(RESEARCH)) r.ere = (r.ere ?? 2) + 3;
-RESEARCH.monnaie.ere = AGE.moyen; RESEARCH.banque.ere = AGE.moderne;
+// Recherches : celles sans âge écrit suivent l'ancienne ère (2 → industriel, 3 → galactique) ; les autres gardent l'âge écrit.
+const RES_AGE: Record<string, number> = { recolte: 1, armure: 2, murs: 2, monnaie: 2, degats: 3, portee: 3, banque: 4, reparation: 4 };
+for (const [k, r] of Object.entries(RESEARCH)) r.ere = RES_AGE[k] ?? (r.ere ?? 2) + 3;
 // Bâtiments plus solides (façon Age of Empires) : les parties durent plus longtemps.
 for (const r of Object.values(BUILDINGS)) r.pv = Math.round(r.pv * 1.5);
 // Façon Age of Empires : on bâtit en bois jusqu'à l'âge moderne ; murailles, portes et tours restent en pierre.
-const STONE = new Set(['mur', 'porte', 'tourelle']);
+const STONE = new Set(['mur', 'porte', 'tourelle', 'chateau']);
 for (const [k, r] of Object.entries(BUILDINGS)) if (r.ere <= 4 && !STONE.has(k) && r.cout.minerai) { r.cout.bois = r.cout.minerai; delete r.cout.minerai; }
 // Âge moderne et après : le bois sert encore un peu (charpentes, caisses) pour les unités sans or.
 
 
+/** Noms qui changent à chaque âge (âges 1 à 6) ; '' : pas encore disponible. */
+const NOMS: Record<string, string[]> = {
+  labo: ['Monastère', 'Scriptorium', 'Université', 'Académie des sciences', 'Laboratoire', 'Institut stellaire'],
+  marche: ['', 'Marché', 'Marché', 'Bourse', 'Bourse', 'Bourse galactique'],
+  temple: ['', 'Église', 'Cathédrale', 'Hôpital', 'Centre médical', 'Clinique orbitale'],
+  chateau: ['', '', 'Château', 'Fort', 'Bunker', 'Forteresse orbitale'],
+  quai: ['Port', 'Port', 'Port', 'Port', 'Port industriel', 'Quai orbital'],
+  recycleur: ['', 'Ferme', 'Ferme', 'Ferme', 'Ferme mécanisée', 'Ferme hydroponique'],
+};
 /** Noms affichés aux âges anciens (Antiquité, Moyen Âge) : mêmes rôles, autre époque. */
 const OLD_B: Record<string, [string, string]> = {
   centre: ['Centre-ville', 'Centre-ville'], habitat: ['Maison', 'Maison'], stationEau: ['Moulin', 'Moulin'], depotMinier: ['Camp de mineurs', 'Camp de mineurs'],
-  scierie: ['Camp de bûcherons', 'Camp de bûcherons'], recycleur: ['Ferme', 'Ferme'], quai: ['Port', 'Port'], tourelle: ['Tour de guet', 'Tour de guet'], caserne: ['Caserne', 'Caserne'],
+  scierie: ['Camp de bûcherons', 'Camp de bûcherons'], tourelle: ['Tour de guet', 'Tour de guet'], caserne: ['Caserne', 'Caserne'],
   mur: ['Palissade', 'Muraille'], porte: ['Porte', 'Porte fortifiée'],
 };
 const OLD_U: Record<string, string> = { ouvrier: 'Villageois', navette: 'Barque de transport' };
 /** Nom complet d'un bâtiment selon l'âge de son camp. */
-export function nomBat(kind: string, ere: number): string { return ere <= 3 && OLD_B[kind] ? OLD_B[kind][Math.min(ere, 2) - 1] : BUILDINGS[kind]?.nom ?? kind; }
+export function nomBat(kind: string, ere: number): string {
+  const n = NOMS[kind]; if (n) { for (let e = Math.max(1, Math.min(ere, 6)); e <= 6; e++) if (n[e - 1]) return n[e - 1]; }
+  return ere <= 3 && OLD_B[kind] ? OLD_B[kind][Math.min(ere, 2) - 1] : BUILDINGS[kind]?.nom ?? kind;
+}
 /** Nom d'une unité selon l'âge de son camp. */
 export function nomUnit(kind: string, ere: number): string { return ere <= 3 && OLD_U[kind] ? OLD_U[kind] : UNITS[kind]?.nom ?? kind; }
 /** Style visuel d'un âge (5 styles pour 6 âges) : 1 Antiquité, 2 Moyen Âge et âge de la poudre, 3 moderne, 4 industriel, 5 galactique. */

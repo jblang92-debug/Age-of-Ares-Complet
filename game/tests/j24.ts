@@ -1,4 +1,4 @@
-// Tribut entre joueurs : taxe, Monnaie et Banque au Centre, ordres refusés.
+// Tribut entre joueurs : taxe, Monnaie et Banque au Marché, ordres refusés.
 // Lancer : npx tsx tests/j24.ts
 import { generateMap, SIZES } from '../src/mapgen/index';
 import { Sim } from '../src/sim/sim';
@@ -19,15 +19,18 @@ sim.issue({ type: 'tribute', owner: 0, to: 0, res: 'bois', amount: 100 }); sim.i
 check('pas de tribut à soi-même ni de fausse ressource', Q.bois === 750 && P.pop >= 0);
 // Un joueur ne peut pas envoyer au nom d'un autre (ordre filtré en ligne).
 check('ordre d\'un autre camp rejeté', sim.own({ type: 'tribute', owner: 1, to: 0, res: 'bois', amount: 100 }, 0) === null);
-// Monnaie puis Banque au Centre.
-const c = sim.buildings.find((b) => b.owner === 0 && b.kind === 'centre')!;
+// Monnaie puis Banque au Marché.
+const cc = sim.buildings.find((b) => b.owner === 0 && b.kind === 'centre')!;
+const c = sim.placeNear('marche', 0, cc.x + 12, cc.z)!;
+sim.issue({ type: 'research', b: cc.id, key: 'monnaie' }); P.eau = P.energie = 2000; P.ere = 2; sim.step();
+check('plus de Monnaie au Centre', !cc.task);
 P.eau = P.energie = 2000; P.ere = 1;
 sim.issue({ type: 'research', b: c.id, key: 'monnaie' }); sim.step();
 check('Monnaie impossible à l\'Antiquité', !c.task);
 P.ere = 2; sim.issue({ type: 'research', b: c.id, key: 'banque' }); sim.step();
-check('Banque demande la Monnaie (et l\'âge moderne)', !c.task);
+check('Banque demande la Monnaie (et l\'âge de la poudre)', !c.task);
 sim.issue({ type: 'research', b: c.id, key: 'monnaie' }); run(sim, RESEARCH.monnaie.temps * 10 + 20);
-check('Monnaie recherchée au Centre', P.research.has('monnaie'));
+check('Monnaie recherchée au Marché', P.research.has('monnaie'));
 check('taxe à 15 %', Math.abs(sim.tributeTax(0) - 0.15) < 1e-9);
 P.ere = 4; sim.issue({ type: 'research', b: c.id, key: 'banque' }); run(sim, RESEARCH.banque.temps * 10 + 20);
 check('Banque recherchée', P.research.has('banque'));

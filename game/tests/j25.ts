@@ -17,8 +17,8 @@ const check = (label: string, cond: boolean, detail = '') => { console.log((cond
   check('santé gardée en proportion', Math.abs(a.hp / a.maxHp - 0.5) < 0.01 && a.maxHp === BUILDINGS.caserne.pv);
   check('file remboursée', a.queue.length === 0 && P.bois === bois + 30);
   // Fermes : damier.
-  const f1 = sim.farmSnap(0, c.x + 9, c.z + 3), f2 = sim.farmSnap(0, c.x + 14.5, c.z + 3.2);
-  check('fermes alignées sur une grille', Math.abs(f2.x - f1.x - 5.6) < 1e-6 && Math.abs(f2.z - f1.z) < 1e-6, `${f1.x - c.x},${f1.z - c.z} ${f2.x - c.x},${f2.z - c.z}`);
+  const f1 = sim.farmSnap(0, c.x + 11, c.z + 1), f2 = sim.farmSnap(0, c.x + 21, c.z + 0.8);
+  check('fermes alignées sur une grille', Math.abs(f2.x - f1.x - Sim.FARM_GRID) < 1e-6 && Math.abs(f2.z - f1.z) < 1e-6, `${f1.x - c.x},${f1.z - c.z} ${f2.x - c.x},${f2.z - c.z}`);
 }
 {
   // Cible dans une poche fermée : les unités vont au point atteignable le plus proche (et ne restent pas bloquées loin).
